@@ -16,7 +16,6 @@ import pygame  # The game engine.
 import sys  # To be used for closing program.
 import os  # For file handling.
 import math  # For calculations.
-import DrawCar as drawCar
 from math import copysign, sin, radians, degrees  # For calculations
 from pygame.math import Vector2  # For calculations
 
@@ -26,7 +25,7 @@ image_dir = os.path.join(current_dir, 'Images')  # Create var containing the ima
 misc_dir = os.path.join(current_dir, 'Miscellaneous') # Create var containing the misc directory, for all OS.
 icon = pygame.image.load(os.path.join(image_dir, 'ai.png'))  # Load program icon.
 pygame.display.set_icon(icon)  # Set program icon.
-pygame.display.set_caption('NEAT Driving Simulator v3.0')  # Set program title.
+pygame.display.set_caption('NEAT Driving Simulator')  # Set program title.
 screen_width = 1500  # Set program x resolution.
 screen_height = 800  # set program y resolution.
 generation = 0  # Variable to count generations.
@@ -80,7 +79,13 @@ class Car:
 
     # Function to draw car and radars.
     def draw(self, screen):
-        drawCar.draw(self, screen, image_dir)  # Draw car.
+        surface = pygame.image.load(os.path.join(image_dir, 'SupraCar.png')).convert_alpha()
+        rotated_image = pygame.transform.rotate(surface, self.angle)
+        new_rect = rotated_image.get_rect(center=surface.get_rect(topleft=self.position).center)
+        new_rect.y += 6
+        new_rect.x += 7
+        screen.blit(rotated_image, new_rect)
+
         self.draw_radar(screen)  # Draw radars.
 
     # Function to calculate length and endpoints of radars.
