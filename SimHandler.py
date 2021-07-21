@@ -11,12 +11,13 @@
 # FixMe: Time counter freezes at 120 seconds.
 
 # Import libraries.
-import neat  # The genetic algorithm.
-import pygame  # The game engine.
-import sys  # To be used for closing program.
-import os  # For file handling.
 import math  # For calculations.
+import os  # For file handling.
+import sys  # To be used for closing program.
 from math import copysign, sin, radians, degrees  # For calculations.
+
+import neat  # The genetic algorithm handler.
+import pygame  # The game engine.
 from pygame.math import Vector2  # For calculations.
 
 # Startup variables.
@@ -34,6 +35,7 @@ gateColor = (95, 208, 228, 255)  # Used to know what color when driven on, gives
 radarLength = 300  # Set the range of the cars radars.
 startPosX = 750  # The starting position of cars on the x-axis.
 startPosY = 700  # The starting position of cars on the y-axis.
+
 
 # Part 1 of Program
 # Class to be used to create cars.
@@ -63,7 +65,8 @@ class Car:
         self.cpp = 0  # Used to check how much checkpoints the car has passed. ToDo: Checkpoint Related.
 
         # Setup car image.
-        self.surface = pygame.image.load(os.path.join(image_dir, 'SupraCar.png'))  # Load car image to the variable: surface.
+        # Load car image to the variable: surface.
+        self.surface = pygame.image.load(os.path.join(image_dir, 'SupraCar.png'))
         self.rotate_surface = self.surface  # Create a duplicate variable of car's image to help with rotation of car.
 
     # Function to draw radars.
@@ -106,8 +109,8 @@ class Car:
         # Calculate the length of the radar (length var cant be used because the radars are angled).
         dist = int(math.sqrt(math.pow(x - self.center[0], 2) + math.pow(y - self.center[1], 2)))
 
-        self.radars.append([(x, y), dist])  # Adds the data (X, and Y endpoint, and length) from this radar to the,
-                                            # radar list.
+        # Adds the data (X, and Y endpoint, and length) from this radar to the, radar list.
+        self.radars.append([(x, y), dist])
 
     # Function to check whether the car hit a wall (or in the future, a checkpoint).
     def check_collision(self, border):
@@ -124,9 +127,9 @@ class Car:
     # Function to update / refresh various things in program, such as: car position & angle, calculations, etc..
     def update(self, border, dt):
 
-        self.velocity += (self.acceleration * dt, 0)  # Add to the velocity by the amount the car is accelerating
-                                                      # and multiply the acceleration by deltaTime so that it is
-                                                      # accurate.
+        # Add to the velocity by the amount the car is accelerating and multiply the acceleration by deltaTime so
+        # that it is accurate.
+        self.velocity += (self.acceleration * dt, 0)
 
         # Velocity calculation, not sure how it works.
         self.velocity.x = max(float(-self.max_velocity), min(self.velocity.x, float(self.max_velocity)))
@@ -166,28 +169,28 @@ class Car:
         # Add the calculated four corners to the four_points list.
         self.four_points = [left_top, right_top, left_bottom, right_bottom]
 
-        self.distance += (self.velocity[0] + self.velocity[1])  # Calculate the distance the car has driven.
-        self.distance = self.distance / 2                       # Adds the velocity of the car on the x and y axes. Then
-        self.distance = self.distance / self.time_spent         # divides them by 2, to get average velocity, and
-                                                                # divides the velocity (currently stored in distance),
-                                                                # by the time spent driving.
+        # Calculate the distance the car has driven. Adds the velocity of the car on the x and y axes. Then divides them
+        # by 2, to get average velocity, and divides the velocity (currently stored in distance), by the time spent
+        # driving.
+        self.distance += (self.velocity[0] + self.velocity[1])
+        self.distance = self.distance / 2
+        self.distance = self.distance / self.time_spent
 
         self.check_collision(border)  # Check for collisions between the car, wall & gate-points on the border image.
         self.radars.clear()  # Clears / resets / refreshes the data from the radars in self.radars.
 
-        for d in range(-180, 180, 36):  # for every number 36 apart in this range(-180, 180):
-            self.check_radar(d, border)  # Sets the angle each radar should be drawn at in the given range, 36 degrees
-                                         # apart.
+        # for every number 36 apart in this range(-180, 180):
+        for d in range(-180, 180, 36):
+            # Sets the angle each radar should be drawn at in the given range, 36 degrees apart.
+            self.check_radar(d, border)
 
     # Function to grab data from the car.
     def get_data(self):
         radars = self.radars  # Making a proxy (cloned) variable to access the radar data.
-        ret = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, self.velocity[0], self.velocity[1]]  # Setting the input data to be given
-                                                                                  # to the car (you can put anything you
-                                                                                  # want the car to be able to see here,
-                                                                                  # i.e. more radars), first 10 zeros
-                                                                                  # are radars, last 2 are the x, and y
-                                                                                  # velocities of the car.
+
+        # Setting the input data to be given to the car (you can put anything you want the car to be able to see here,
+        # i.e. more radars), first 10 zeros are radars, last 2 are the x, and y velocities of the car.
+        ret = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, self.velocity[0], self.velocity[1]]
 
         for coord, dist in enumerate(radars):  # for every coordinate, and distance (per radar), in the radars list:
             if coord < 10:  # If the amount of coordinates checked is less than 10:
@@ -203,10 +206,9 @@ class Car:
     # Function to calculate the reward that should be given to the car.
     def get_reward(self):
         # return self.cpp # ToDo: Checkpoint related.
-
-        return self.distance / 5000.0  # The 'reward', is added to 'fitness' to see how good the car is at driving.
-                                       # The value is retrieved because this line will 'return' the calculation to
-                                       # whatever called it.
+        # The 'reward', is added to 'fitness' to see how good the car is at driving.The value is retrieved because
+        # this line will 'return' the calculation to whatever called it.
+        return self.distance / 5000.0
 
 
 # Part 2 of Program
@@ -216,8 +218,8 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
     cars = []  # List to hold all the cars and their data.
 
     for c, g in genomes:  # c = each car or maybe amount of cars, g = each genome.
-        net = neat.nn.FeedForwardNetwork.create(g, conf)  # Use NEAT library to create each neural network,
-                                                          # with genome g, using 'conf', the config file.
+        # Use NEAT library to create each neural network, with genome g, using 'conf', the config file.
+        net = neat.nn.FeedForwardNetwork.create(g, conf)
 
         nets.append(net)  # Adds each neural network 'net', to the list 'nets' containing the networks.
         g.fitness = 0  # Sets the initial fitness benchmark for each genome to 0.
@@ -225,19 +227,25 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
 
     # Initialize and setup game / simulation test place.
     pygame.init()  # Load pygame.
-    pygame.event.set_allowed([pygame.QUIT])  # Make sure that pygame only checks to see if the close button is clicked,
-                                             # no other button, or key (saves processing time).
+
+    # Make sure that pygame only checks to see if the close button is clicked, no other button, or key
+    # (saves processing time).
+    pygame.event.set_allowed([pygame.QUIT])
 
     screen = pygame.display.set_mode((screen_width, screen_height))  # Sets up the display surface for the simulation.
     clock = pygame.time.Clock()  # Creates a proxy variable 'clock' to access the in-game clock.
-    font = pygame.font.Font(os.path.join(misc_dir, 'Pixelar.ttf'), 20)  # Loads in a font 'Pixelar', with size 20 to the variable 'font'.
-    level = pygame.image.load(os.path.join(image_dir, 'map3Flat.png')).convert_alpha()  # Loads in level to be  displayed to the var: 'level'.
-    boundary = pygame.image.load(os.path.join(image_dir, 'BorderBB&W.png')).convert()  # Loads in a b&w image to help check for collisions.
+    font = pygame.font.Font(os.path.join(misc_dir, 'Pixelar.ttf'),
+                            20)  # Loads in a font 'Pixelar', with size 20 to the variable 'font'.
+    level = pygame.image.load(
+        os.path.join(image_dir, 'map3Flat.png')).convert_alpha()  # Loads in level to be  displayed to the var: 'level'.
+    boundary = pygame.image.load(
+        os.path.join(image_dir, 'BorderBB&W.png')).convert()  # Loads in a b&w image to help check for collisions.
     tick = 60  # sets the amount of ticks that should be ticked each time the game is refreshed.
     global generation  # Using 'global' to access the variable 'generation' from outside this loop and function.
 
-    generation += 1  # Each time all cars die or time limit passes, the while loop below is stopped, and it runs the
-                     # code in run() again, so it adds to the cars generation each time they all die.
+    # Each time all cars die or time limit passes, the while loop below is stopped, and it runs the code in run() again,
+    # so it adds to the cars generation each time they all die.
+    generation += 1
 
     # Main loop for running the simulation.
     while 1:
@@ -375,7 +383,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         text_rect.center = (110, 680)  # Coordinates for text to be drawn at.
         screen.blit(text, text_rect)  # Render 'text' to the screen at the position of 'text_rect'.
 
-        text = font.render("Fitness: " + m_fitness[0:10], True,(0, 0, 0))  # Text to be drawn, and color.
+        text = font.render("Fitness: " + m_fitness[0:10], True, (0, 0, 0))  # Text to be drawn, and color.
         text_rect = text.get_rect()  # Grab the rectangle borders for the text.
         text_rect.center = (110, 700)  # Coordinates for text to be drawn at.
         screen.blit(text, text_rect)  # Render 'text' to the screen at the position of 'text_rect'.
@@ -393,6 +401,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
 
         pygame.display.flip()  # Refresh the entire screen (graphically).
         clock.tick_busy_loop(tick)  # Tick the clock by 'ticks' amount.
+
 
 # Run program.
 if __name__ == "__main__":
