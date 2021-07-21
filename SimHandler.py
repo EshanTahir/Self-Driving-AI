@@ -82,8 +82,6 @@ class Car:
         surface = pygame.image.load(os.path.join(image_dir, 'SupraCar.png')).convert_alpha()
         rotated_image = pygame.transform.rotate(surface, self.angle)
         new_rect = rotated_image.get_rect(center=surface.get_rect(topleft=self.position).center)
-        new_rect.y += 6
-        new_rect.x += 7
         screen.blit(rotated_image, new_rect)
 
         self.draw_radar(screen)  # Draw radars.
@@ -146,7 +144,7 @@ class Car:
         self.time_spent += 1  # Used to calculate distance the car is driven.
 
         # Calculate the 4 collision points (corners) of the car.
-        self.center = [int(self.position[0]) + 64, int(self.position[1]) + 32]  # Calculate center of car.
+        self.center = [int(self.position[0]) + 56.5, int(self.position[1]) + 27]  # Calculate center of car.
         length = 40  # The length of the car.
 
         # Calculate the left top corner of the car.
