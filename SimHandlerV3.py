@@ -14,13 +14,15 @@
 import neat  # The genetic algorithm.
 import pygame  # The game engine.
 import sys  # To be used for closing program.
+import os  # For file handling.
 import math  # For calculations.
 import DrawCar as drawCar
 from math import copysign, sin, radians, degrees  # For calculations
 from pygame.math import Vector2  # For calculations
 
 # Startup variables.
-icon = pygame.image.load('AI.png')  # Load program icon.
+current_dir = os.path.dirname(os.path.abspath(__file__))  # Create var containing the current directory, for all OS.
+icon = pygame.image.load(os.path.join(current_dir, ai.png))  # Load program icon.
 pygame.display.set_icon(icon)  # Set program icon.
 pygame.display.set_caption('NEAT Driving Simulator v3.0')  # Set program title.
 screen_width = 1500  # Set program x resolution.
@@ -31,7 +33,6 @@ gateColor = (95, 208, 228, 255)  # Used to know what color when driven on, gives
 radarLength = 300  # Set the range of the cars radars.
 startPosX = 750  # The starting position of cars on the x-axis.
 startPosY = 700  # The starting position of cars on the y-axis.
-
 
 # Part 1 of Program
 # Class to be used to create cars.
@@ -61,7 +62,7 @@ class Car:
         self.cpp = 0  # Used to check how much checkpoints the car has passed. ToDo: Checkpoint Related.
 
         # Setup car image.
-        self.surface = pygame.image.load("SupraCar.png")  # Load car image to the variable: surface.
+        self.surface = pygame.image.load(os.path.join(current_dir, 'SupraCar.png'))  # Load car image to the variable: surface.
         self.rotate_surface = self.surface  # Create a duplicate variable of car's image to help with rotation of car.
 
     # Function to draw radars.
@@ -77,7 +78,7 @@ class Car:
 
     # Function to draw car and radars.
     def draw(self, screen):
-        drawCar.draw(self, screen) # Draw car.
+        drawCar.draw(self, screen, current_dir)  # Draw car.
         self.draw_radar(screen)  # Draw radars.
 
     # Function to calculate length and endpoints of radars.
@@ -225,8 +226,8 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
     screen = pygame.display.set_mode((screen_width, screen_height))  # Sets up the display surface for the simulation.
     clock = pygame.time.Clock()  # Creates a proxy variable 'clock' to access the in-game clock.
     font = pygame.font.Font("Pixelar.ttf", 20)  # Loads in a font 'Pixelar', with size 20 to the variable 'font'.
-    level = pygame.image.load('map3Flat.png').convert_alpha()  # Loads in level to be  displayed to the var: 'level'.
-    boundary = pygame.image.load('BorderBB&W.png').convert()  # Loads in a b&w image to help check for collisions.
+    level = pygame.image.load(os.path.join(current_dir, 'map3Flat.png')).convert_alpha()  # Loads in level to be  displayed to the var: 'level'.
+    boundary = pygame.image.load(os.path.join(current_dir, 'BorderBB&W.png')).convert()  # Loads in a b&w image to help check for collisions.
     tick = 60  # sets the amount of ticks that should be ticked each time the game is refreshed.
     global generation  # Using 'global' to access the variable 'generation' from outside this loop and function.
 
