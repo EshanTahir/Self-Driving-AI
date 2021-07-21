@@ -47,7 +47,7 @@ class Car:
         self.length = length  # The length of the car.
         self.max_acceleration = max_acceleration  # The maximum amount of speed/velocity the car can gain per second.
         self.max_steering = max_steering  # The maximum turning angle of the car.
-        self.max_velocity = 400  # The maximum speed/velocity of the car.
+        self.max_velocity = 200  # The maximum speed/velocity of the car.
         self.brake_deceleration = 10  # How much the car slows down when the brake is pressed.
         self.free_deceleration = 2  # How much the car slows down when it is not accelerating, decelerating, etc..
 
