@@ -16,13 +16,13 @@ import pygame  # The game engine.
 import sys  # To be used for closing program.
 import os  # For file handling.
 import math  # For calculations.
-from math import copysign, sin, radians, degrees  # For calculations
-from pygame.math import Vector2  # For calculations
+from math import copysign, sin, radians, degrees  # For calculations.
+from pygame.math import Vector2  # For calculations.
 
 # Startup variables.
 current_dir = os.path.dirname(os.path.abspath(__file__))  # Create var containing the current directory, for all OS.
 image_dir = os.path.join(current_dir, 'Images')  # Create var containing the images directory, for all OS.
-misc_dir = os.path.join(current_dir, 'Miscellaneous') # Create var containing the misc directory, for all OS.
+misc_dir = os.path.join(current_dir, 'Miscellaneous')  # Create var containing the misc directory, for all OS.
 icon = pygame.image.load(os.path.join(image_dir, 'ai.png'))  # Load program icon.
 pygame.display.set_icon(icon)  # Set program icon.
 pygame.display.set_caption('NEAT Driving Simulator')  # Set program title.
