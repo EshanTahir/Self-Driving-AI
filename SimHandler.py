@@ -38,7 +38,7 @@ startPosY = 700  # The starting position of cars on the y-axis.
 # Part 1 of Program
 # Class to be used to create cars.
 class Car:
-    def __init__(self, x=startPosX, y=startPosY, angle=0.0, length=4, max_steering=25, max_acceleration=20.0):
+    def __init__(self, x=startPosX, y=startPosY, angle=0.0, length=4, max_steering=30, max_acceleration=40.0):
 
         # Setup car variables.
         self.position = Vector2(x, y)  # Variable to see current position of the car on both axes.
@@ -47,7 +47,7 @@ class Car:
         self.length = length  # The length of the car.
         self.max_acceleration = max_acceleration  # The maximum amount of speed/velocity the car can gain per second.
         self.max_steering = max_steering  # The maximum turning angle of the car.
-        self.max_velocity = 120  # The maximum speed/velocity of the car.
+        self.max_velocity = 400  # The maximum speed/velocity of the car.
         self.brake_deceleration = 10  # How much the car slows down when the brake is pressed.
         self.free_deceleration = 2  # How much the car slows down when it is not accelerating, decelerating, etc..
 
@@ -130,8 +130,8 @@ class Car:
                                                       # and multiply the acceleration by deltaTime so that it is
                                                       # accurate.
 
-        self.velocity.x = max(-self.max_velocity, min(self.velocity.x, self.max_velocity))  # Velocity calculation,
-                                                                                            # not sure how it works.
+        # Velocity calculation, not sure how it works.
+        self.velocity.x = max(float(-self.max_velocity), min(self.velocity.x, float(self.max_velocity)))
 
         if self.steering:  # Checks if the car is turning / steering (or at least going to).
             turning_radius = self.length / sin(radians(self.steering))  # Calculates the radius how the car should turn.
