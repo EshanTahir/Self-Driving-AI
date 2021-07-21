@@ -22,7 +22,9 @@ from pygame.math import Vector2  # For calculations
 
 # Startup variables.
 current_dir = os.path.dirname(os.path.abspath(__file__))  # Create var containing the current directory, for all OS.
-icon = pygame.image.load(os.path.join(current_dir, ai.png))  # Load program icon.
+image_dir = os.path.join(current_dir, 'Images')  # Create var containing the images directory, for all OS.
+misc_dir = os.path.join(current_dir, 'Miscellaneous') # Create var containing the misc directory, for all OS.
+icon = pygame.image.load(os.path.join(image_dir, 'ai.png'))  # Load program icon.
 pygame.display.set_icon(icon)  # Set program icon.
 pygame.display.set_caption('NEAT Driving Simulator v3.0')  # Set program title.
 screen_width = 1500  # Set program x resolution.
@@ -62,7 +64,7 @@ class Car:
         self.cpp = 0  # Used to check how much checkpoints the car has passed. ToDo: Checkpoint Related.
 
         # Setup car image.
-        self.surface = pygame.image.load(os.path.join(current_dir, 'SupraCar.png'))  # Load car image to the variable: surface.
+        self.surface = pygame.image.load(os.path.join(image_dir, 'SupraCar.png'))  # Load car image to the variable: surface.
         self.rotate_surface = self.surface  # Create a duplicate variable of car's image to help with rotation of car.
 
     # Function to draw radars.
@@ -78,7 +80,7 @@ class Car:
 
     # Function to draw car and radars.
     def draw(self, screen):
-        drawCar.draw(self, screen, current_dir)  # Draw car.
+        drawCar.draw(self, screen, image_dir)  # Draw car.
         self.draw_radar(screen)  # Draw radars.
 
     # Function to calculate length and endpoints of radars.
@@ -225,9 +227,9 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
 
     screen = pygame.display.set_mode((screen_width, screen_height))  # Sets up the display surface for the simulation.
     clock = pygame.time.Clock()  # Creates a proxy variable 'clock' to access the in-game clock.
-    font = pygame.font.Font("Pixelar.ttf", 20)  # Loads in a font 'Pixelar', with size 20 to the variable 'font'.
-    level = pygame.image.load(os.path.join(current_dir, 'map3Flat.png')).convert_alpha()  # Loads in level to be  displayed to the var: 'level'.
-    boundary = pygame.image.load(os.path.join(current_dir, 'BorderBB&W.png')).convert()  # Loads in a b&w image to help check for collisions.
+    font = pygame.font.Font(os.path.join(misc_dir, 'Pixelar.ttf'), 20)  # Loads in a font 'Pixelar', with size 20 to the variable 'font'.
+    level = pygame.image.load(os.path.join(image_dir, 'map3Flat.png')).convert_alpha()  # Loads in level to be  displayed to the var: 'level'.
+    boundary = pygame.image.load(os.path.join(image_dir, 'BorderBB&W.png')).convert()  # Loads in a b&w image to help check for collisions.
     tick = 60  # sets the amount of ticks that should be ticked each time the game is refreshed.
     global generation  # Using 'global' to access the variable 'generation' from outside this loop and function.
 
