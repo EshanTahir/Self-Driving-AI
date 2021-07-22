@@ -3,9 +3,7 @@
 # ToDo: Replace distance driven fitness reward with gates to reward fitness when driven over by car.
 # ToDo: Add GUI, start button, skip generation button, button to toggle view of all cars at once.
 # ToDo: Add weather changes, obstacles, and environment changes to simulation.
-# Todo: Add a neural net viewer.
-# Todo: Cleanup unused code, neaten current code, use more variables for calculations, use better names for vars, etc..
-# ToDo: Scan all lines of code and write detailed comments.
+# Todo: Refactor code.
 
 # FixMe: Bugs to fix:
 # FixMe: Time counter freezes at 120 seconds.
@@ -24,11 +22,13 @@ from pygame.math import Vector2  # For calculations.
 current_dir = os.path.dirname(os.path.abspath(__file__))  # Create var containing the current directory, for all OS.
 image_dir = os.path.join(current_dir, 'Images')  # Create var containing the images directory, for all OS.
 misc_dir = os.path.join(current_dir, 'Miscellaneous')  # Create var containing the misc directory, for all OS.
+
 icon = pygame.image.load(os.path.join(image_dir, 'ai.png'))  # Load program icon.
 pygame.display.set_icon(icon)  # Set program icon.
 pygame.display.set_caption('NEAT Driving Simulator')  # Set program title.
 screen_width = 1500  # Set program x resolution.
 screen_height = 800  # set program y resolution.
+
 generation = 0  # Variable to count generations.
 trackColor = (255, 255, 255, 255)  # Used to know what color can be driven on.
 gateColor = (95, 208, 228, 255)  # Used to know what color when driven on, gives a reward. ToDo: Checkpoint related.
