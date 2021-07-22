@@ -1,5 +1,6 @@
 # Import libraries.
 import neat  # The genetic algorithm handler.
+
 from simHandler import run_car
 
 # Run program.

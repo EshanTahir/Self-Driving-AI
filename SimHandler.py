@@ -5,6 +5,7 @@ from math import copysign  # For calculations.
 
 import neat  # The genetic algorithm handler.
 import pygame  # The game engine.
+
 from carClass import Car
 
 current_dir = os.path.dirname(os.path.abspath(__file__))  # Create var containing the current directory, for all OS.
