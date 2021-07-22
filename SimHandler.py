@@ -5,9 +5,6 @@
 # ToDo: Add weather changes, obstacles, and environment changes to simulation.
 # Todo: Refactor code.
 
-# FixMe: Bugs to fix:
-# FixMe: Time counter freezes at 120 seconds.
-
 # Import libraries.
 import math  # For calculations.
 import os  # For file handling.
@@ -240,6 +237,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         os.path.join(image_dir, 'map3Flat.png')).convert_alpha()  # Loads in level to be  displayed to the var: 'level'.
     boundary = pygame.image.load(
         os.path.join(image_dir, 'BorderBB&W.png')).convert()  # Loads in a b&w image to help check for collisions.
+    start_time = pygame.time.get_ticks()  # used to calculate elapsed time, for timer.
     tick = 60  # sets the amount of ticks that should be ticked each time the game is refreshed.
     global generation  # Using 'global' to access the variable 'generation' from outside this loop and function.
 
@@ -249,6 +247,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
 
     # Main loop for running the simulation.
     while 1:
+        pygame.event.pump()
         # Setup variables for the loop.
         remain_cars = 0  # Used to check how much cars are alive in total, initially set to 0.
         f_list = []  # A list used to see what car has the highest fitness, all cars fitness are added here and checked.
@@ -335,11 +334,11 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         if remain_cars == 0:  # If all cars died:
             break  # Exit the while loop and end the generation.
 
-        #   FixMe: Time freezing at 120 seconds.
         # Setup generation timer.
-
-        gen_time = pygame.time.get_ticks()  # Set the variable to be the same amount of ticks, divide it by 1k to get
-        gen_time = gen_time / 1000          # seconds, and divide it by the generation amount to create a timer.
+        # Set the variable to be the same amount of elapsed ticks, divide it by 1k to get seconds, and divide it by
+        # the generation amount to create a timer.
+        gen_time = pygame.time.get_ticks() - start_time
+        gen_time = gen_time / 1000
         gen_time = gen_time / generation
         gen_time = str(gen_time)  # Convert the variable to a string from being a number.
 
@@ -401,7 +400,6 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
 
         pygame.display.flip()  # Refresh the entire screen (graphically).
         clock.tick_busy_loop(tick)  # Tick the clock by 'ticks' amount.
-
 
 # Run program.
 if __name__ == "__main__":
