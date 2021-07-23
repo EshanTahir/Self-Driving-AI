@@ -1,3 +1,10 @@
+# ToDo: Features to add:
+# ToDo: Add scrolling functionality to the program so the car is always visible.
+# ToDo: Replace distance driven fitness reward with gates to reward fitness when driven over by car.
+# ToDo: Add GUI, start button, skip generation button, button to toggle view of all cars at once.
+# ToDo: Add weather changes, obstacles, and environment changes to simulation.
+# Todo: Refactor code.
+
 # Import libraries.
 import neat  # The genetic algorithm handler.
 

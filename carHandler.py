@@ -15,8 +15,6 @@ radarLength = 300  # Set the range of the cars radars.
 startPosX = 750  # The starting position of cars on the x-axis.
 startPosY = 700  # The starting position of cars on the y-axis.
 
-
-# Part 1 of Program
 # Class to be used to create cars.
 class Car:
     def __init__(self, x=startPosX, y=startPosY, angle=0.0, length=4, max_steering=30, max_acceleration=40.0):

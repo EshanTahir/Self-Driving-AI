@@ -1,12 +1,2 @@
-
-.idea/inspectionProfiles/profiles_settings.xml
-.idea/misc.xml
-.idea/Self-Driving-AI.iml
-.idea/modules.xml
-.idea/vcs.xml
-.idea/workspace.xml
-__pycache__/DrawCar.cpython-39.pyc
-.idea/.name
-.idea/copyright/Copyright.xml
-__pycache__/simHandlerNew.cpython-39.pyc
-__pycache__/carClass.cpython-39.pyc
+.idea/
+__pycache__/

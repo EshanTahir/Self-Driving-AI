@@ -6,7 +6,8 @@ from math import copysign  # For calculations.
 import neat  # The genetic algorithm handler.
 import pygame  # The game engine.
 
-from carClass import Car
+import uiHandler
+from carHandler import Car
 
 current_dir = os.path.dirname(os.path.abspath(__file__))  # Create var containing the current directory, for all OS.
 image_dir = os.path.join(current_dir, 'Images')  # Create var containing the images directory, for all OS.
@@ -22,7 +23,6 @@ screen_height = 800  # set program y resolution.
 generation = 0  # Variable to count generations.
 
 
-# Part 2 of Program
 # Function to call on to run simulation
 def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, species are made up of similar genomes.
     nets = []  # List to hold all the neural networks.
@@ -165,52 +165,25 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         m_fitness = str(m_fitness)
 
         # Draw a transparent box for stats to be written on.
-        stat_box = pygame.Surface((200, 200))  # Create a surface with (200, 200) resolution.
-        stat_box.set_alpha(50)  # Make the surface '50' transparent.
-        stat_box.fill((255, 255, 255))  # Set the color of the surface to (255, 255, 255) / black.
-        screen.blit(stat_box, (screen_width / 150, screen_height / 1.355932))  # Render box to the screen.
+        uiHandler.drawBox(screen, 200, 200, screen_width / 150, screen_height / 1.35)
 
         # Drawing the stats:
-        text = font.render("Car generation: " + str(generation), True, (0, 0, 0))  # Text to be drawn, and color.
-        text_rect = text.get_rect()  # Grab the rectangle borders for the text.
-        text_rect.center = (110, 600)  # Coordinates for text to be drawn at.
-        screen.blit(text, text_rect)  # Render 'text' to the screen at the position of 'text_rect'.
+        uiHandler.drawText(screen, 110, 600, font, "Car generation: " + str(generation))
 
-        text = font.render("Generation clock: " + gen_time[0:3] + "s", True, (0, 0, 0))  # Text to be drawn, and color.
-        text_rect = text.get_rect()  # Grab the rectangle borders for the text.
-        text_rect.center = (110, 620)  # Coordinates for text to be drawn at.
-        screen.blit(text, text_rect)  # Render 'text' to the screen at the position of 'text_rect'.
+        uiHandler.drawText(screen, 110, 620, font, "Generation clock: " + gen_time[0:3] + "s")
 
-        text = font.render("Speed: " + m_speed[0:4] + "mph", True, (0, 0, 0))  # Text to be drawn, and color.
-        text_rect = text.get_rect()  # Grab the rectangle borders for the text.
-        text_rect.center = (110, 640)  # Coordinates for text to be drawn at.
-        screen.blit(text, text_rect)  # Render 'text' to the screen at the position of 'text_rect'.
+        uiHandler.drawText(screen, 110, 640, font, "Speed: " + m_speed[0:4] + "mph")
 
-        text = font.render("Throttle: " + m_acceleration[0:4], True, (0, 0, 0))  # Text to be drawn, and color.
-        text_rect = text.get_rect()  # Grab the rectangle borders for the text.
-        text_rect.center = (110, 660)  # Coordinates for text to be drawn at.
-        screen.blit(text, text_rect)  # Render 'text' to the screen at the position of 'text_rect'.
+        uiHandler.drawText(screen, 110, 660, font, "Throttle: " + m_acceleration[0:4])
 
-        text = font.render("Steering: " + m_steering[0:4] + "°", True, (0, 0, 0))  # Text to be drawn, and color.
-        text_rect = text.get_rect()  # Grab the rectangle borders for the text.
-        text_rect.center = (110, 680)  # Coordinates for text to be drawn at.
-        screen.blit(text, text_rect)  # Render 'text' to the screen at the position of 'text_rect'.
+        uiHandler.drawText(screen, 110, 680, font, "Steering: " + m_steering[0:4] + "°")
 
-        text = font.render("Fitness: " + m_fitness[0:10], True, (0, 0, 0))  # Text to be drawn, and color.
-        text_rect = text.get_rect()  # Grab the rectangle borders for the text.
-        text_rect.center = (110, 700)  # Coordinates for text to be drawn at.
-        screen.blit(text, text_rect)  # Render 'text' to the screen at the position of 'text_rect'.
+        uiHandler.drawText(screen, 110, 700, font, "Fitness: " + m_fitness[0:10])
 
-        text = font.render("Coordinates: " + "(" + str(m_position_x[0:4]) + ", " + str(m_position_y[0:3]) + ")", True,
-                           (0, 0, 0))  # Text to be drawn, and color.
-        text_rect = text.get_rect()  # Grab the rectangle borders for the text.
-        text_rect.center = (110, 720)  # Coordinates for text to be drawn at.
-        screen.blit(text, text_rect)  # Render 'text' to the screen at the position of 'text_rect'.
+        uiHandler.drawText(screen, 110, 720, font,
+                           "Coordinates: " + "(" + str(m_position_x[0:4]) + ", " + str(m_position_y[0:3]) + ")")
 
-        text = font.render("Remaining cars: " + str(remain_cars), True, (0, 0, 0))  # Text to be drawn, and color.
-        text_rect = text.get_rect()  # Grab the rectangle borders for the text.
-        text_rect.center = (110, 740)  # Coordinates for text to be drawn at.
-        screen.blit(text, text_rect)  # Render 'text' to the screen at the position of 'text_rect'.
+        uiHandler.drawText(screen, 110, 740, font, "Remaining cars: " + str(remain_cars))
 
         pygame.display.flip()  # Refresh the entire screen (graphically).
         clock.tick_busy_loop(tick)  # Tick the clock by 'ticks' amount.
