@@ -41,7 +41,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
 
     # Make sure that pygame only checks to see if the close button is clicked, no other button, or key
     # (saves processing time).
-    pygame.event.set_allowed([pygame.QUIT])
+    pygame.event.set_allowed([pygame.QUIT, pygame.MOUSEMOTION, pygame.MOUSEBUTTONUP, pygame.MOUSEBUTTONDOWN])
 
     screen = pygame.display.set_mode((screen_width, screen_height))  # Sets up the display surface for the simulation.
     clock = pygame.time.Clock()  # Creates a proxy variable 'clock' to access the in-game clock.

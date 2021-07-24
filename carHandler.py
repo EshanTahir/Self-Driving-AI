@@ -58,13 +58,14 @@ class Car:
                                3)  # Draw circle on map, cobalt color, at the center of the other circle, with size 3.
 
     # Function to draw car and radars.
-    def draw(self, screen):
+    def draw(self, screen, drawRadar=True):
         surface = pygame.image.load(os.path.join(image_dir, 'SupraCar.png')).convert_alpha()
         rotated_image = pygame.transform.rotate(surface, self.angle)
         new_rect = rotated_image.get_rect(center=surface.get_rect(topleft=self.position).center)
         screen.blit(rotated_image, new_rect)
 
-        self.draw_radar(screen)  # Draw radars.
+        if drawRadar:
+            self.draw_radar(screen)  # Draw radars.
 
     # Function to calculate length and endpoints of radars.
     def check_radar(self, degree, border):
