@@ -128,7 +128,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         for i, car in enumerate(cars):  # for each cars neural network and car in the cars list:
             if car.get_alive():  # if that car is alive:
                 if genomes[i][1].fitness == max(f_list):  # If the neural networks genomes fitness is the highest:
-                    car.surface = car.surface.convert()  # Convert the cars image for faster calculations.
+                    car.surface = car.surface.convert_alpha()  # Convert the cars image for faster calculations.
 
                     # Setting up the variables for statistics.
                     m_acceleration = car.acceleration  # This variable = the same as the best car.
@@ -145,7 +145,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
                 car.draw(screen)
             else:
                 break  # Break out of this for loop.
-                
+
         # Check if the generation should end.
         if pygame.time.get_ticks() >= 120000 * generation:  # if the ticks that passed is greater than 120k (120.s)*gen:
             break  # Exit the while loop and end the generation.
