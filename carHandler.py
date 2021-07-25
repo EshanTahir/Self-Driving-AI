@@ -17,7 +17,7 @@ startPosY = 700  # The starting position of cars on the y-axis.
 
 # Class to be used to create cars.
 class Car:
-    def __init__(self, x=startPosX, y=startPosY, angle=0.0, length=4, max_steering=30, max_acceleration=40.0):
+    def __init__(self, x=startPosX, y=startPosY, angle=0.0, length=3.53, max_steering=30, max_acceleration=40.0):
 
         # Setup car variables.
         self.position = Vector2(x, y)  # Variable to see current position of the car on both axes.
