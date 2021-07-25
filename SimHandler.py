@@ -71,6 +71,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         m_position_x = 0  # A variable used to display the x-coordinate of the car with the most fitness.
         m_position_y = 0  # A variable used to display the y-coordinate of the car with the most fitness.
         m_fitness = 0  # A variable used to display the fitness level of the car with the most fitness.
+        drawAll = False
         dt = clock.get_time() / 1000  # Variable used to calculate delta time.
 
         for event in pygame.event.get():  # Loop to check if anything that can be pressed was pressed:
@@ -139,8 +140,12 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
                     m_speed = m_speed / 2
 
                     car.draw(screen)  # Draw this car (the best car) to the screen.
-                    break  # Break out of this for loop.
 
+            elif car.get_alive() and drawAll:
+                car.draw(screen)
+            else:
+                break  # Break out of this for loop.
+                
         # Check if the generation should end.
         if pygame.time.get_ticks() >= 120000 * generation:  # if the ticks that passed is greater than 120k (120.s)*gen:
             break  # Exit the while loop and end the generation.
