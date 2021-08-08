@@ -78,7 +78,6 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
             if event.type == pygame.QUIT:  # If the quit button was pressed:
                 sys.exit(0)  # Exit the program.
 
-        #
         for index, car in enumerate(cars):  # For neural net ID, and car in the cars list,
             output = nets[index].activate(car.get_data())  # The output that the net 'returns' when given car data.
             i = output.index(max(output))  # i = the max output received from the net (the actual output).

@@ -78,7 +78,7 @@ class Car:
         # Loop to run while the position of the radars endpoint (x, and y), on the 'border'(b&w image for collisions),
         # is the same color as the track, and while the radar is still shorter than its maximum range (radarLength).
         while border.get_at((x, y)) == trackColor and length < radarLength:
-            length = length + 1  # Extends the length of the radar (will stop at 300), until it touches a wall.
+            length += 1  # Extends the length of the radar (will stop at 300), until it touches a wall.
 
             # Calculate the x, and y position of radars endpoint.
             x = int(self.center[0] + math.cos(math.radians(360 - (self.angle + degree))) * length)  # X coordinate.
