@@ -5,6 +5,8 @@
 # ToDo: Add weather changes, obstacles, and environment changes to simulation.
 # Todo: Refactor code.
 
+# ToDo: Bugs:
+# ToDo: Fix line aliasing
 
 
 # Import libraries.
