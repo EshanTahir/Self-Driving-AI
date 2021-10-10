@@ -100,7 +100,6 @@ class Car:
                 break  # Breaks / exits out of the for loop.
 
         # if map.get_at(self.center) == gateColor: #    ToDo: Checkpoint related.
-        #   self.cpp += 1
 
     # Function to update / refresh various things in program, such as: car position & angle, calculations, etc..
     def update(self, border, dt):
@@ -158,7 +157,7 @@ class Car:
         self.radars.clear()  # Clears / resets / refreshes the data from the radars in self.radars.
 
         # for every number 36 apart in this range(-180, 180):
-        for d in range(-180, 180, 36):
+        for d in range(-180, 180, 24):
             # Sets the angle each radar should be drawn at in the given range, 36 degrees apart.
             self.check_radar(d, border)
 
@@ -168,10 +167,10 @@ class Car:
 
         # Setting the input data to be given to the car (you can put anything you want the car to be able to see here,
         # i.e. more radars), first 10 zeros are radars, last 2 are the x, and y velocities of the car.
-        ret = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, self.velocity[0], self.velocity[1]]
+        ret = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, self.velocity[0], self.velocity[1]]
 
         for coord, dist in enumerate(radars):  # for every coordinate, and distance (per radar), in the radars list:
-            if coord < 10:  # If the amount of coordinates checked is less than 10:
+            if coord < 15:  # If the amount of coordinates checked is less than 10:
                 ret[coord] = int(dist[1] / 30)  # The first 10 values in 'ret' will be changed to the distance / 30.
             else:  # When the 10 values are set:
                 break  # Exit the for loop.

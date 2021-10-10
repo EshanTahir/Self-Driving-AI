@@ -47,10 +47,12 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
     clock = pygame.time.Clock()  # Creates a proxy variable 'clock' to access the in-game clock.
     font = pygame.font.Font(os.path.join(misc_dir, 'Pixelar.ttf'),
                             20)  # Loads in a font 'Pixelar', with size 20 to the variable 'font'.
+
     level = pygame.image.load(
         os.path.join(image_dir, 'map3Flat.png')).convert_alpha()  # Loads in level to be  displayed to the var: 'level'.
     boundary = pygame.image.load(
         os.path.join(image_dir, 'BorderBB&W.png')).convert()  # Loads in a b&w image to help check for collisions.
+
     start_time = pygame.time.get_ticks()  # used to calculate elapsed time, for timer.
     tick = 60  # sets the amount of ticks that should be ticked each time the game is refreshed.
     global generation  # Using 'global' to access the variable 'generation' from outside this loop and function.
@@ -155,10 +157,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         # Setup generation timer.
         # Set the variable to be the same amount of elapsed ticks, divide it by 1k to get seconds, and divide it by
         # the generation amount to create a timer.
-        gen_time = pygame.time.get_ticks() - start_time
-        gen_time = gen_time / 1000
-        gen_time = gen_time / generation
-        gen_time = str(gen_time)  # Convert the variable to a string from being a number.
+        gen_time = str((((pygame.time.get_ticks() - start_time) / 1000) / generation))
 
         # Convert the data to strings so it can be displayed.
         m_speed = str(m_speed)
@@ -167,6 +166,10 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         m_position_x = str(m_position_x)
         m_position_y = str(m_position_y)
         m_fitness = str(m_fitness)
+
+        #Draw FPS counter
+        fps = str(int(clock.get_fps()))
+        uiHandler.drawText(screen, 110, 760, font, 'FPS: ' + fps)
 
         # Draw a transparent box for stats to be written on.
         uiHandler.drawBox(screen, 200, 200, screen_width / 150, screen_height / 1.35)

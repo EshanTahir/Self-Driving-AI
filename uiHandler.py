@@ -14,7 +14,6 @@ def drawText(screen, x, y, font, text, rgb=(0, 0, 0), aa=True):
     string_rect.center = (x, y)  # Coordinates for text to be drawn at.
     screen.blit(string, string_rect)  # Render 'string' to the screen at the position of 'string_rect'.
 
-
 class Button:
     def __init__(self, x, y, image):
         self.x = x
