@@ -5,7 +5,7 @@ from math import sin, radians, degrees  # For calculations.
 
 import pygame  # The game engine.
 from pygame.math import Vector2  # For calculations.
-
+from math import copysign # For calculations.
 current_dir = os.path.dirname(os.path.abspath(__file__))  # Create var containing the current directory, for all OS.
 image_dir = os.path.join(current_dir, 'Images')  # Create var containing the images directory, for all OS.
 
@@ -100,7 +100,39 @@ class Car:
                 break  # Breaks / exits out of the for loop.
 
         # if map.get_at(self.center) == gateColor: #    ToDo: Checkpoint related.
+    def accelerate(self, dt):
+        if self.velocity.x < 0:
+            self.acceleration = self.brake_deceleration
+        else:
+            self.acceleration += 1 * dt
 
+    def decelerate(self,dt):
+        if self.velocity.x > 0:
+            self.acceleration = -self.brake_deceleration
+        else:
+            self.acceleration -= 1 * dt
+
+    def brake(self, dt):
+        if abs(self.velocity.x) > dt * self.brake_deceleration:
+            self.acceleration = -copysign(self.brake_deceleration, self.velocity.x)
+        else:
+            self.acceleration = -self.velocity.x / dt
+
+    def turnLeft(self, dt):
+        self.steering += 30 * dt
+
+    def turnRight(self, dt):
+        self.steering -= 30 * dt
+
+    def blank1(self, dt):
+        if abs(self.velocity.x) > dt * self.free_deceleration:
+            self.acceleration = -copysign(self.free_deceleration, self.velocity.x)
+        else:
+            if dt != 0:
+                self.acceleration = -self.velocity.x / dt
+                
+    def blank2(self, dt):
+        self.steering = 0
     # Function to update / refresh various things in program, such as: car position & angle, calculations, etc..
     def update(self, border, dt):
 

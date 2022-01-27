@@ -85,35 +85,27 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
             i = output.index(max(output))  # i = the max output received from the net (the actual output).
 
             # Defining what the car does when it outputs certain values (accelerate, decelerate, brake, turn, etc..):
-            if i == 1:
-                if car.velocity.x < 0:
-                    car.acceleration = car.brake_deceleration
-                else:
-                    car.acceleration += 1 * dt
-            elif i == 2:
-                if car.velocity.x > 0:
-                    car.acceleration = -car.brake_deceleration
-                else:
-                    car.acceleration -= 1 * dt
+            if i == 0:
+                car.accelerate(dt)
+            elif i == 1:
+                car.decelerate(dt)
             elif i == 5:
-                if abs(car.velocity.x) > dt * car.brake_deceleration:
-                    car.acceleration = -copysign(car.brake_deceleration, car.velocity.x)
-                else:
-                    car.acceleration = -car.velocity.x / dt
-            else:
-                if abs(car.velocity.x) > dt * car.free_deceleration:
-                    car.acceleration = -copysign(car.free_deceleration, car.velocity.x)
-                else:
-                    if dt != 0:
-                        car.acceleration = -car.velocity.x / dt
-            car.acceleration = max(-car.max_acceleration, min(car.acceleration, car.max_acceleration))
+                car.brake(dt)
 
             if i == 3:
-                car.steering += 30 * dt
+                car.turnLeft(dt)
             elif i == 4:
-                car.steering -= 30 * dt
-            else:
-                car.steering = 0
+                car.turnRight(dt)
+
+            if i ==2:
+                car.blank1(dt)
+            if i == 6:
+                car.blank2(dt)
+            if i == 7:
+                car.blank1(dt)
+                car.blank2(dt)
+
+            car.acceleration = max(-car.max_acceleration, min(car.acceleration, car.max_acceleration))
             car.steering = max(-car.max_steering, min(car.steering, car.max_steering))
 
         for i, car in enumerate(cars):  # for each neural net, and car in cars list:
