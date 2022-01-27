@@ -71,8 +71,8 @@ compatibility_threshold = 3.0
 
 [DefaultStagnation]
 species_fitness_func = mean
-max_stagnation       = 15
-species_elitism      = 2
+max_stagnation       = 50
+species_elitism      = 10
 
 [DefaultReproduction]
 elitism            = 1
