@@ -85,17 +85,17 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
             i = output.index(max(output))  # i = the max output received from the net (the actual output).
 
             # Defining what the car does when it outputs certain values (accelerate, decelerate, brake, turn, etc..):
-            if i > .5 and i != 1:
+            if i == 1:
                 if car.velocity.x < 0:
                     car.acceleration = car.brake_deceleration
                 else:
                     car.acceleration += 1 * dt
-            elif i < .5 and i != 0:
+            elif i == 2:
                 if car.velocity.x > 0:
                     car.acceleration = -car.brake_deceleration
                 else:
                     car.acceleration -= 1 * dt
-            elif i == .5:
+            elif i == 5:
                 if abs(car.velocity.x) > dt * car.brake_deceleration:
                     car.acceleration = -copysign(car.brake_deceleration, car.velocity.x)
                 else:
@@ -108,9 +108,9 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
                         car.acceleration = -car.velocity.x / dt
             car.acceleration = max(-car.max_acceleration, min(car.acceleration, car.max_acceleration))
 
-            if i == 1:
+            if i == 3:
                 car.steering += 30 * dt
-            elif i == 0:
+            elif i == 4:
                 car.steering -= 30 * dt
             else:
                 car.steering = 0

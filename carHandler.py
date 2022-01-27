@@ -170,9 +170,9 @@ class Car:
         ret = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, self.velocity[0], self.velocity[1]]
 
         for coord, dist in enumerate(radars):  # for every coordinate, and distance (per radar), in the radars list:
-            if coord < 15:  # If the amount of coordinates checked is less than 10:
+            if coord < 15:  # If the amount of coordinates checked is less than 15:
                 ret[coord] = int(dist[1] / 30)  # The first 10 values in 'ret' will be changed to the distance / 30.
-            else:  # When the 10 values are set:
+            else:  # When the 15 values are set:
                 break  # Exit the for loop.
         return ret  # Returns the list 'ret' containing the inputs for the car to whatever calls this function.
 
