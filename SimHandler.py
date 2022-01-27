@@ -1,7 +1,6 @@
 # Import libraries.
 import os  # For file handling.
 import sys  # To be used for closing program.
-from math import copysign  # For calculations.
 
 import neat  # The genetic algorithm handler.
 import pygame  # The game engine.
@@ -73,7 +72,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         m_position_x = 0  # A variable used to display the x-coordinate of the car with the most fitness.
         m_position_y = 0  # A variable used to display the y-coordinate of the car with the most fitness.
         m_fitness = 0  # A variable used to display the fitness level of the car with the most fitness.
-        drawAll = False
+        draw_all = False
         dt = clock.get_time() / 1000  # Variable used to calculate delta time.
 
         for event in pygame.event.get():  # Loop to check if anything that can be pressed was pressed:
@@ -97,7 +96,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
             elif i == 4:
                 car.turnRight(dt)
 
-            if i ==5:
+            if i == 5:
                 car.blank1(dt)
             if i == 6:
                 car.blank2(dt)
@@ -134,7 +133,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
 
                     car.draw(screen)  # Draw this car (the best car) to the screen.
 
-            elif car.get_alive() and drawAll:
+            elif car.get_alive() and draw_all:
                 car.draw(screen)
             else:
                 break  # Break out of this for loop.
@@ -148,18 +147,19 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
 
         # Setup generation timer.
         # Set the variable to be the same amount of elapsed ticks, divide it by 1k to get seconds, and divide it by
-        # the generation amount to create a timer.
-        gen_time = str((((pygame.time.get_ticks() - start_time) / 1000) / generation))
-
+        # the generation amount to create a timer. Edit format to 2 decimal places.
+        gen_time = (((pygame.time.get_ticks() - start_time) / 1000) / generation)
+        gen_time = str("{:.2f}".format(gen_time))
+        
         # Convert the data to strings so it can be displayed.
-        m_speed = str(m_speed)
-        m_acceleration = str(m_acceleration)
-        m_steering = str(m_steering)
-        m_position_x = str(m_position_x)
-        m_position_y = str(m_position_y)
+        m_speed = str("{:.2f}".format(m_speed))
+        m_acceleration = str("{:.2f}".format(m_acceleration))
+        m_steering = str("{:.2f}".format(m_steering))
+        m_position_x = str("{:.2f}".format(m_position_x))
+        m_position_y = str("{:.2f}".format(m_position_y))
         m_fitness = str("{:.2f}".format(m_fitness))
 
-        #Draw FPS counter
+        # Draw FPS counter
         fps = str(int(clock.get_fps()))
         uiHandler.drawText(screen, 110, 760, font, 'FPS: ' + fps)
 
@@ -169,18 +169,18 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         # Drawing the stats:
         uiHandler.drawText(screen, 110, 600, font, "Car generation: " + str(generation))
 
-        uiHandler.drawText(screen, 110, 620, font, "Generation clock: " + gen_time[0:3] + "s")
+        uiHandler.drawText(screen, 110, 620, font, "Generation clock: " + gen_time + "s")
 
-        uiHandler.drawText(screen, 110, 640, font, "Speed: " + m_speed[0:4] + "mph")
+        uiHandler.drawText(screen, 110, 640, font, "Speed: " + m_speed + "mph")
 
-        uiHandler.drawText(screen, 110, 660, font, "Throttle: " + m_acceleration[0:4])
+        uiHandler.drawText(screen, 110, 660, font, "Throttle: " + m_acceleration)
 
-        uiHandler.drawText(screen, 110, 680, font, "Steering: " + m_steering[0:4] + "°")
+        uiHandler.drawText(screen, 110, 680, font, "Steering: " + m_steering + "°")
 
-        uiHandler.drawText(screen, 110, 700, font, "Fitness: " + m_fitness[0:10])
+        uiHandler.drawText(screen, 110, 700, font, "Fitness: " + m_fitness)
 
         uiHandler.drawText(screen, 110, 720, font,
-                           "Coordinates: " + "(" + str(m_position_x[0:4]) + ", " + str(m_position_y[0:3]) + ")")
+                           "Coordinates: " + "(" + str(m_position_x) + ", " + str(m_position_y) + ")")
 
         uiHandler.drawText(screen, 110, 740, font, "Remaining cars: " + str(remain_cars))
 
