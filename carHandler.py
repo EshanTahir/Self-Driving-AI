@@ -100,6 +100,8 @@ class Car:
                 break  # Breaks / exits out of the for loop.
 
         # if map.get_at(self.center) == gateColor: #    ToDo: Checkpoint related.
+
+    # Functions to define car movements:
     def accelerate(self, dt):
         if self.velocity.x < 0:
             self.acceleration = self.brake_deceleration
@@ -120,7 +122,7 @@ class Car:
                 self.acceleration = -self.velocity.x / dt
             else:
                 self.acceleration = self.acceleration
-                
+
     def turnLeft(self, dt):
         self.steering += 30 * dt
 
@@ -136,6 +138,7 @@ class Car:
 
     def blank2(self, dt):
         self.steering = 0
+        
     # Function to update / refresh various things in program, such as: car position & angle, calculations, etc..
     def update(self, border, dt):
 

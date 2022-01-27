@@ -104,7 +104,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
             if i == 7:
                 car.blank1(dt)
                 car.blank2(dt)
-
+            # Update car acceleration and steering values.
             car.acceleration = max(-car.max_acceleration, min(car.acceleration, car.max_acceleration))
             car.steering = max(-car.max_steering, min(car.steering, car.max_steering))
 
