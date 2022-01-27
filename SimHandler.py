@@ -89,7 +89,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
                 car.accelerate(dt)
             elif i == 1:
                 car.decelerate(dt)
-            elif i == 5:
+            elif i == 2:
                 car.brake(dt)
 
             if i == 3:
@@ -97,7 +97,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
             elif i == 4:
                 car.turnRight(dt)
 
-            if i ==2:
+            if i ==5:
                 car.blank1(dt)
             if i == 6:
                 car.blank2(dt)

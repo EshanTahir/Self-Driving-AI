@@ -116,8 +116,11 @@ class Car:
         if abs(self.velocity.x) > dt * self.brake_deceleration:
             self.acceleration = -copysign(self.brake_deceleration, self.velocity.x)
         else:
-            self.acceleration = -self.velocity.x / dt
-
+            if dt!= 0:
+                self.acceleration = -self.velocity.x / dt
+            else:
+                self.acceleration = self.acceleration
+                
     def turnLeft(self, dt):
         self.steering += 30 * dt
 
@@ -130,7 +133,7 @@ class Car:
         else:
             if dt != 0:
                 self.acceleration = -self.velocity.x / dt
-                
+
     def blank2(self, dt):
         self.steering = 0
     # Function to update / refresh various things in program, such as: car position & angle, calculations, etc..
