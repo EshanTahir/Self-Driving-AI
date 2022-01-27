@@ -138,7 +138,7 @@ class Car:
 
     def blank2(self, dt):
         self.steering = 0
-        
+
     # Function to update / refresh various things in program, such as: car position & angle, calculations, etc..
     def update(self, border, dt):
 
@@ -223,4 +223,8 @@ class Car:
         # return self.cpp # ToDo: Checkpoint related.
         # The 'reward', is added to 'fitness' to see how good the car is at driving.The value is retrieved because
         # this line will 'return' the calculation to whatever called it.
-        return self.distance / 5000.0
+        if self.distance >= 0: # Temporary fix for distance so that it does not return negative values.
+            return self.distance
+        else:
+            self.distance = 0
+            return self.distance
