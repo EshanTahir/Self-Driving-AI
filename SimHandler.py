@@ -72,7 +72,8 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         m_position_x = 0  # A variable used to display the x-coordinate of the car with the most fitness.
         m_position_y = 0  # A variable used to display the y-coordinate of the car with the most fitness.
         m_fitness = 0  # A variable used to display the fitness level of the car with the most fitness.
-        draw_all = False
+        draw_all = False # A variable used to either display all cars or best car.
+        write_output = False # A variable used to output cars output values to file.
         dt = clock.get_time() / 1000  # Variable used to calculate delta time.
 
         for event in pygame.event.get():  # Loop to check if anything that can be pressed was pressed:
@@ -83,24 +84,30 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
             output = nets[index].activate(car.get_data())  # The output that the net 'returns' when given car data.
             i = output.index(max(output))  # i = the max output received from the net (the actual output).
 
+            # Used to output the cars outputs to file "Irend.txt".
+            if write_output:
+                f = open("Irend.txt", "a")
+                f.write(str(i)+"\n")
+                f.close()
+
             # Defining what the car does when it outputs certain values (accelerate, decelerate, brake, turn, etc..):
-            if i == 0:
+            if i == 7:
                 car.accelerate(dt)
-            elif i == 1:
+            elif i == 6:
                 car.decelerate(dt)
-            elif i == 2:
+            elif i == 5:
                 car.brake(dt)
 
-            if i == 3:
+            if i == 4:
                 car.turnLeft(dt)
-            elif i == 4:
+            elif i == 3:
                 car.turnRight(dt)
 
-            if i == 5:
+            if i == 2:
                 car.blank1(dt)
-            if i == 6:
+            if i == 1:
                 car.blank2(dt)
-            if i == 7:
+            if i == 0:
                 car.blank1(dt)
                 car.blank2(dt)
             # Update car acceleration and steering values.
@@ -151,12 +158,12 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         gen_time = (((pygame.time.get_ticks() - start_time) / 1000) / generation)
         gen_time = str("{:.2f}".format(gen_time))
         
-        # Convert the data to strings so it can be displayed.
+        # Convert the data to strings and format them to 2 decimal places so it can be displayed.
         m_speed = str("{:.2f}".format(m_speed))
         m_acceleration = str("{:.2f}".format(m_acceleration))
         m_steering = str("{:.2f}".format(m_steering))
-        m_position_x = str("{:.2f}".format(m_position_x))
-        m_position_y = str("{:.2f}".format(m_position_y))
+        m_position_x = str("{:.0f}".format(m_position_x))
+        m_position_y = str("{:.0f}".format(m_position_y))
         m_fitness = str("{:.2f}".format(m_fitness))
 
         # Draw FPS counter
