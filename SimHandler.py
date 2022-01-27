@@ -157,7 +157,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         m_steering = str(m_steering)
         m_position_x = str(m_position_x)
         m_position_y = str(m_position_y)
-        m_fitness = str(m_fitness)
+        m_fitness = str("{:.2f}".format(m_fitness))
 
         #Draw FPS counter
         fps = str(int(clock.get_fps()))
