@@ -1,18 +1,21 @@
 # ToDo: Features to add:
-# ToDo: Add GUI, start button, skip generation button, button to toggle view of all cars at once.
-# ToDo: Add scrolling functionality to the program so the car is always visible.
-# ToDo: Replace distance driven fitness reward with gates to reward fitness when driven over by car.
+# ToDo: Implement in-house genetic algorithm
+# ToDo: Remake physics system.
 # ToDo: Add weather changes, obstacles, and environment changes to simulation.
+
+# ToDo: Create program to make checkpoints
+# ToDo: Add feature to indicate when best car changes
+# ToDo: Add play pause button
+
 # Todo: Refactor code.
 
-# ToDo: Bugs:
-# ToDo: Fix line aliasing
+# 8 pixels == 5 irl inches. 101376 pixels == 1 mile.
 
 
 # Import libraries.
 import neat  # The genetic algorithm handler.
 
-from simHandler import run_car
+from SimHandler import run_car
 
 # Run program.
 if __name__ == "__main__":
