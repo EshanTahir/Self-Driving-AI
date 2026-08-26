@@ -11,11 +11,9 @@ from carHandler import Car
 import mapHandler
 import Camera
 
-current_dir = os.path.dirname(os.path.abspath(__file__))  # Create var containing the current directory, for all OS.
-image_dir = os.path.join(current_dir, 'Images')  # Create var containing the images directory, for all OS.
-misc_dir = os.path.join(current_dir, 'Miscellaneous')  # Create var containing the misc directory, for all OS.
+from paths import FONTS_DIR, IMAGES_DIR
 
-icon = pygame.image.load(os.path.join(image_dir, 'ai.png'))  # Load program icon.
+icon = pygame.image.load(os.path.join(IMAGES_DIR, 'ai.png'))  # Load program icon.
 pygame.display.set_icon(icon)  # Set program icon.
 pygame.display.set_caption('NEAT Driving Simulator')  # Set program title.
 
@@ -40,7 +38,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
 
     screen = pygame.display.set_mode((screen_width, screen_height))  # Sets up the display surface for the simulation.
     clock = pygame.time.Clock()  # Creates a proxy variable 'clock' to access the in-game clock.
-    font = pygame.font.Font(os.path.join(misc_dir, 'Pixelar.ttf'),
+    font = pygame.font.Font(os.path.join(FONTS_DIR, 'Pixelar.ttf'),
                             24)  # Loads in a font 'Pixelar', with size 20 to the variable 'font'.
 
     maps = mapHandler.get_maps()
@@ -63,7 +61,7 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
     f.close()
 
     pygame.mouse.set_visible(False)
-    cursors = [pygame.image.load(os.path.join(image_dir, 'Cursor.png')).convert_alpha(), pygame.image.load( os.path.join(image_dir, 'Cursor1.png')).convert_alpha()]
+    cursors = [pygame.image.load(os.path.join(IMAGES_DIR, 'Cursor.png')).convert_alpha(), pygame.image.load( os.path.join(IMAGES_DIR, 'Cursor1.png')).convert_alpha()]
     cursor_state = 0
     cursor_img_rect = cursors[cursor_state].get_rect()
 

@@ -13,17 +13,28 @@
 
 
 # Import libraries.
+import os  # For file handling.
+import sys  # To be used for putting src/ on the import path.
+
+# Put src/ on the import path so modules resolve like a normal package layout.
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # Create var containing the project root, for all OS.
+sys.path.insert(0, os.path.join(ROOT_DIR, 'src'))
+
 import neat  # The genetic algorithm handler.
 
 from SimHandler import run_car
 
 # Run program.
-if __name__ == "__main__":
+if __name__ == '__main__':
     sim_length = 1000000
-    config_path = "./config-feedforward.txt"  # Set the location for the configuration file.
-    config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                                neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                                config_path)  # Setup NEAT configuration.
+    config_path = os.path.join(ROOT_DIR, 'config-feedforward.txt')  # Set the location for the configuration file.
+    config = neat.config.Config(
+        neat.DefaultGenome,
+        neat.DefaultReproduction,
+        neat.DefaultSpeciesSet,
+        neat.DefaultStagnation,
+        config_path,
+    )  # Setup NEAT configuration.
 
     # Create core evolution algorithm class
     p = neat.Population(config)

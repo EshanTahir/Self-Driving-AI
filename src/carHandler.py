@@ -7,8 +7,8 @@ import pygame  # The game engine.
 import uiHandler
 from pygame.math import Vector2  # For calculations.
 from math import copysign  # For calculations.
-current_dir = os.path.dirname(os.path.abspath(__file__))  # Create var containing the current directory, for all OS.
-image_dir = os.path.join(current_dir, 'Images')  # Create var containing the images directory, for all OS.
+
+from paths import IMAGES_DIR
 
 trackColor = (255, 255, 255, 255)  # Used to know what color can be driven on.
 radarLength = 300  # Set the range of the cars radars.
@@ -16,7 +16,7 @@ radarLength = 300  # Set the range of the cars radars.
 
 # Class to be used to create cars.
 class Car(pygame.sprite.Sprite):
-    def __init__(self, id, map, car_image=pygame.image.load(os.path.join(image_dir, 'SupraCar.png')), bound_box_length=55, length=3.53, max_steering=30, max_acceleration=40.0):
+    def __init__(self, id, map, car_image=pygame.image.load(os.path.join(IMAGES_DIR, 'SupraCar.png')), bound_box_length=55, length=3.53, max_steering=30, max_acceleration=40.0):
         super().__init__()
         self.map = map
         self.position = Vector2(map[2][0][0], map[2][0][1])  # Variable to see current position of the car on both axes.
