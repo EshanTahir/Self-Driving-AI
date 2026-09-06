@@ -1,7 +1,7 @@
 # Import libraries.
 import math  # For calculations.
 import os  # For file handling.
-from math import sin, radians, degrees, tan  # For calculations.
+from math import sin, radians, degrees, tan, isfinite  # For calculations.
 
 import pygame  # The game engine.
 import uiHandler
@@ -11,6 +11,11 @@ from paths import IMAGES_DIR
 
 trackColor = (255, 255, 255, 255)  # Used to know what color can be driven on.
 radarLength = 300  # Set the range of the cars radars.
+
+
+# Function to do a 2D dot product of two vectors.
+def dot(a, b):
+    return a[0] * b[0] + a[1] * b[1]
 
 
 # Class to be used to create cars.
@@ -43,6 +48,7 @@ class Car(pygame.sprite.Sprite):
         self.velocity = Vector2(0.0, 0.0)  # Variable to see the current speed/velocity of the car on both axes.
         self.bound_box_length = bound_box_length
         self.length = length  # The length of the car.
+        self.mass = 1500  # Simple mass used for F = ma style forces.
         self.max_acceleration = max_acceleration  # The maximum amount of acceleration the car can use.
         self.max_steering = max_steering  # The maximum turning angle of the car (degrees).
         self.max_velocity = 266.4  # The maximum speed/velocity of the car.
@@ -56,6 +62,12 @@ class Car(pygame.sprite.Sprite):
 
         self.acceleration = 0.0  # Used to add speed to the car from throttle.
         self.steering = 0.0  # Used to see how much to turn the car (degrees).
+
+        # Lateral friction / drift parameters (beginner slip model).
+        self.normal_lateral_friction = 8.0  # How hard tires fight sideways slide on grip.
+        self.drift_lateral_friction = 1.5  # How hard tires fight sideways slide while drifting.
+        self.use_drift_friction = False  # Variable to check whether the car is currently drifting.
+        self.slip_angle = 0.0  # Angle between heading and velocity.
 
         self.four_points = []  # Will contain the location of the four corners of the car.
         self.center = [self.position[0] + 56.5, self.position[1] + 27]  # Variable with calculation for center of car.
@@ -199,30 +211,71 @@ class Car(pygame.sprite.Sprite):
         self.steering = self.max_steering * self.steering_input  # Target steer from continuous input.
         self.acceleration = self.max_acceleration * self.throttle  # Engine push from throttle.
 
-        # Apply brake as extra deceleration opposing forward speed.
-        if self.brake_force > 0 and abs(self.velocity.x) > 0.1:
-            self.acceleration -= self.brake_deceleration * self.brake_force * (1 if self.velocity.x > 0 else -1)
-        elif self.throttle == 0 and abs(self.velocity.x) > 0.1:
-            # Free roll slowdown when not on the gas.
-            self.acceleration -= self.free_deceleration * (1 if self.velocity.x > 0 else -1)
+        # Heading unit vectors (angle is stored in degrees like the online car).
+        forward = Vector2(math.cos(radians(-self.angle)), math.sin(radians(-self.angle)))
+        right = Vector2(-math.sin(radians(-self.angle)), math.cos(radians(-self.angle)))
 
-        # Add to the velocity by the amount the car is accelerating and multiply by deltaTime so that it is accurate.
-        self.velocity += (self.acceleration * dt, 0)
+        # World-space engine force along heading.
+        engine_force = forward * (self.acceleration * self.mass)
 
-        # Clamp velocity so the car can't go forever.
-        self.velocity.x = max(float(-self.max_velocity), min(self.velocity.x, float(self.max_velocity)))
+        # Apply brake as force opposing current velocity.
+        if self.brake_force > 0 and self.velocity.length() > 0.1:
+            brake_force = -self.velocity.normalize() * (self.brake_deceleration * self.brake_force * self.mass)
+        else:
+            brake_force = Vector2(0, 0)
 
-        if abs(self.steering) > 0.1:  # Checks if the car is turning / steering.
+        # Free roll slowdown when not on the gas / brake.
+        if self.throttle == 0 and self.brake_force == 0 and self.velocity.length() > 0.1:
+            drag_force = -self.velocity.normalize() * (self.free_deceleration * self.mass)
+        else:
+            drag_force = Vector2(0, 0)
+
+        # Split velocity into forward vs sideways for slip.
+        forward_speed = dot(forward, self.velocity)
+        lateral_speed = dot(right, self.velocity)
+
+        if abs(forward_speed) > 0.1:
+            self.slip_angle = abs(math.atan(lateral_speed / forward_speed))  # Angle between heading and velocity.
+        else:
+            self.slip_angle = 0.0
+
+        slip_threshold = radians(8)
+        speed_threshold = 50
+
+        # Check if we should use lower (drift) lateral friction.
+        self.use_drift_friction = (self.slip_angle > slip_threshold) or (
+            self.brake_force > 0 and abs(forward_speed) > speed_threshold
+        )
+
+        if self.use_drift_friction:
+            lateral_friction_coef = self.drift_lateral_friction
+        else:
+            lateral_friction_coef = self.normal_lateral_friction
+
+        # Push sideways speed back down (grip vs drift).
+        lateral_friction_force = -right * (lateral_speed * lateral_friction_coef * self.mass)
+
+        net_force = engine_force + brake_force + drag_force + lateral_friction_force
+        acceleration_vec = net_force / self.mass  # F = ma, so a = F / m.
+        self.velocity += acceleration_vec * dt  # Add acceleration * deltaTime so it is accurate.
+
+        self.speed = self.velocity.length()  # Current speed from velocity.
+        if self.speed > self.max_velocity:
+            self.velocity = self.velocity.normalize() * self.max_velocity  # Cap top speed.
+
+        if abs(self.steering) > 0.1 and abs(forward_speed) > 0.1:
             turning_radius = self.length / tan(radians(self.steering))  # Calculates the radius how the car should turn.
-            angular_velocity = self.velocity.x / turning_radius  # Calculates the velocity of the car while turning.
-        else:  # If its not turning, then:
+            if isfinite(turning_radius):
+                angular_velocity = forward_speed / turning_radius  # Calculates the velocity of the car while turning.
+            else:
+                angular_velocity = 0
+        else:
             angular_velocity = 0  # Sets the cars turning velocity to zero.
 
-        self.position += self.velocity.rotate(-self.angle) * dt * 0.5  # Calculate the position of the car.
+        self.position += self.velocity * dt * 0.5  # Calculate the position of the car.
         self.angle += degrees(angular_velocity) * dt  # Calculate the angle of the car, its direction.
-        self.position += self.velocity.rotate(-self.angle) * dt * 0.5  # Calculate the position of the car, again.
+        self.position += self.velocity * dt * 0.5  # Calculate the position of the car, again.
 
-        self.speed = abs(self.velocity.x)  # Simple speed reading from longitudinal velocity.
         self.time_spent += 1  # Used to calculate distance the car is driven.
 
         # Calculate the 4 collision points (corners) of the car.
