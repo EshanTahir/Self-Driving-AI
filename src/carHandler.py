@@ -9,7 +9,7 @@ from pygame.math import Vector2  # For calculations.
 
 from paths import IMAGES_DIR
 
-trackColor = (255, 255, 255, 255)  # Used to know what color can be driven on.
+trackColor = (255, 255, 255, 255)  # Used to know what color can be driven on (white = on-road).
 radarLength = 300  # Set the range of the cars radars.
 
 
@@ -54,6 +54,7 @@ class Car(pygame.sprite.Sprite):
         self.max_velocity = 266.4  # The maximum speed/velocity of the car.
         self.brake_deceleration = 500  # How much the car slows down when the brake is pressed.
         self.free_deceleration = 40  # How much the car slows down when it is not accelerating.
+        self.radar_length = radarLength  # Set the range of the cars radars.
 
         # Continuous driver inputs (set each frame by the net / keyboard).
         self.throttle = 0.0  # -1..1 throttle amount.
@@ -150,35 +151,48 @@ class Car(pygame.sprite.Sprite):
         self.draw_radar(screen, offset)
 
     # Function to calculate length and endpoints of radars.
-    def check_radar(self, degree, border):
+    def check_radar(self, degree, border_mask):
+        # Cast a ray until it hits a non-driveable pixel or max range.
+        # border_mask: 2D uint8 [x, y], nonzero = driveable.
         length = 0  # The initial length of the radar.
+        width, height = border_mask.shape[0], border_mask.shape[1]
 
-        # Calculate the x, and y position of radars endpoint.
-        x = int(self.center[0] + math.cos(math.radians(360 - (self.angle + degree))) * length)  # X endpoint coordinate.
-        y = int(self.center[1] + math.sin(math.radians(360 - (self.angle + degree))) * length)  # Y endpoint coordinate.
+        dx = math.cos(math.radians(360 - (self.angle + degree)))  # X direction of this radar ray.
+        dy = math.sin(math.radians(360 - (self.angle + degree)))  # Y direction of this radar ray.
+        px, py = self.center[0], self.center[1]
+        x, y = int(px), int(py)
+        step = 4  # How many pixels to extend the ray each loop (faster than 1px steps).
 
-        # Loop to run while the position of the radars endpoint (x, and y), on the 'border'(b&w image for collisions),
-        # is the same color as the track, and while the radar is still shorter than its maximum range (radarLength).
-        while border.get_at((x, y)) == trackColor and length < radarLength:
-            length += 1  # Extends the length of the radar (will stop at 300), until it touches a wall.
+        # Loop while the endpoint is still on the map, still on the track, and under max range.
+        while 0 <= x < width and 0 <= y < height and length < self.radar_length:
+            if border_mask[x, y] == 0:
+                break  # Hit a wall  -  stop extending.
+
+            length += step  # Extends the length of the radar until it touches a wall / max range.
 
             # Calculate the x, and y position of radars endpoint.
-            x = int(self.center[0] + math.cos(math.radians(360 - (self.angle + degree))) * length)  # X endpoint coordinate.
-            y = int(self.center[1] + math.sin(math.radians(360 - (self.angle + degree))) * length)  # Y endpoint coordinate.
+            x = int(px + dx * length)  # X endpoint coordinate.
+            y = int(py + dy * length)  # Y endpoint coordinate.
 
-        # Calculate the length of the radar (length var cant be used because the radars are angled).
-        dist = int(math.sqrt(math.pow(x - self.center[0], 2) + math.pow(y - self.center[1], 2)))
+        # Adds the data (X, and Y endpoint, and length) from this radar to the radar list.
+        self.radars.append([(x, y), float(length)])
 
-        # Adds the data (X, and Y endpoint, and length) from this radar to the, radar list.
-        self.radars.append([(x, y), dist])
-
-    # Function to check whether the car hit a wall (or in the future, a checkpoint).
-    def check_collision(self, border):
+    # Function to check whether the car hit a wall (or left the driveable track).
+    def check_collision(self, border_mask):
+        # border_mask: 2D uint8 array indexed [x, y], nonzero = driveable.
         self.is_alive = True  # Sets the car to alive.
+        width, height = border_mask.shape[0], border_mask.shape[1]
+
         for e in self.four_points:  # for every point in self.four_points (corners of the car):
-            # If the corner is touching a pixel in 'border' that isn't the same color as te track:
-            if border.get_at((int(e[0]), int(e[1]))) != trackColor:
-                self.is_alive = False  # Sets the car to not "alive".
+            x, y = int(e[0]), int(e[1])
+
+            if 0 <= x < width and 0 <= y < height:
+                # If the corner is on a pixel that isn't driveable:
+                if border_mask[x, y] == 0:
+                    self.is_alive = False  # Sets the car to not "alive".
+                    break  # Breaks / exits out of the for loop.
+            else:
+                self.is_alive = False  # Off the map counts as a crash too.
                 break  # Breaks / exits out of the for loop.
 
     # Function to set discrete driver inputs from a list of command strings.
@@ -305,50 +319,52 @@ class Car(pygame.sprite.Sprite):
         self.distance = self.distance / 2
         self.distance = self.distance / self.time_spent
 
-        self.check_collision(border)  # Check for collisions between the car, wall & gate-points on the border image.
+        self.check_collision(border)  # Check for collisions between the car and walls on the border mask.
         self.radars.clear()  # Clears / resets / refreshes the data from the radars in self.radars.
 
-        # for every number 20 apart in this range(-180, 180), 360/20:
-        for d in range(-180, 180, 20):
-            # Sets the angle each radar should be drawn at in the given range, 36 degrees apart.
+        # for every number 10 apart in this range(-55, 56) → 12 radar rays:
+        for d in range(-55, 56, 10):
+            # Sets the angle each radar should be drawn at in the given range.
             self.check_radar(d, border)
 
-    # Function to grab data from the car.
+    # Function to grab data from the car (inputs for the neural net).
     def get_data(self):
+        # 16-D obs: 12 radars + speed + cp dist/angle + steer  -  no clearances yet.
         radars = self.radars  # Making a proxy (cloned) variable to access the radar data.
+        speed_normalized = min(self.speed / self.max_velocity, 1.0)
 
-        if self.frames_passed == 2:
-            distance = [self.rect.center[0] - self.last_2_frame_position[0], self.rect.center[1] - self.last_2_frame_position[1]]
-            distance = [distance[0] * .625, distance[1] * .625]
-            distance = distance[0] + distance[1]
-            distance /= 2
-            time = pygame.time.get_ticks() / 1000 - self.last_2_frame_tick
-            try:
-                self.speed = abs(distance / time)
-            except:
-                self.speed = self.last_speed
+        # Setting the input data to be given to the car (you can put anything you want the car to be able to see here).
+        ret = [0.0] * 16
 
-            self.last_2_frame_position = self.rect.center
-            self.last_2_frame_tick = pygame.time.get_ticks() / 1000
-            self.last_speed = self.speed
-            self.frames_passed = 0
-
-        if self.steering < 0:
-            steering = 1
-        elif self.steering > 0:
-            steering = 2
-        else:
-            steering = 0
-
-        # Setting the input data to be given to the car (you can put anything you want the car to be able to see here,
-        # i.e. more radars), first values are radars, last are the speed and angle of car.
-        ret = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, self.speed, abs(self.steering), steering]
-
-        for coord, dist in enumerate(radars):  # for every coordinate, and distance (per radar), in the radars list:
-            if coord < 18:  # If the amount of coordinates checked is less than 18:
-                ret[coord] = int(dist[1] / 30)  # The first values in 'ret' will be changed to the distance / 30.
-            else:  # When the values are set:
+        for coord, radar_data in enumerate(radars):  # for every coordinate, and distance (per radar), in the radars list:
+            if coord < 12:  # If the amount of coordinates checked is less than 12:
+                ret[coord] = min(radar_data[1] / self.radar_length, 1.0)  # Normalize radar length into 0..1.
+            else:  # When the 12 values are set:
                 break  # Exit the for loop.
+
+        ret[12] = speed_normalized  # Normalized speed.
+
+        next_checkpoint = self.checkpoints[self.current_checkpoint]
+        checkpoint_distance = math.sqrt(
+            math.pow(next_checkpoint[0] - self.center[0], 2) +
+            math.pow(next_checkpoint[1] - self.center[1], 2)
+        )  # Distance from car to the next checkpoint.
+        checkpoint_distance_normalized = max(0, 1 - (checkpoint_distance / 500.0))
+
+        checkpoint_angle = math.atan2(
+            next_checkpoint[1] - self.center[1],
+            next_checkpoint[0] - self.center[0]
+        )  # Angle from car to the next checkpoint.
+
+        relative_angle = (math.degrees(checkpoint_angle) - self.angle) % 360
+        if relative_angle > 180:
+            relative_angle -= 360
+        relative_angle_normalized = relative_angle / 180.0  # -1..1 relative heading to checkpoint.
+
+        ret[13] = checkpoint_distance_normalized
+        ret[14] = relative_angle_normalized
+        ret[15] = self.steering / self.max_steering  # Normalized steering amount.
+
         return ret  # Returns the list 'ret' containing the inputs for the car to whatever calls this function.
 
     # Function to check if the car is alive.
