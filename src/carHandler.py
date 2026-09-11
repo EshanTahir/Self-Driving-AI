@@ -76,6 +76,8 @@ class Car(pygame.sprite.Sprite):
         self.is_alive = True  # Variable to allow checking whether the car is alive (should be drawn), or dead.
         self.distance = 0  # Used to find the distance the car has gone. Currently being used to calculate cars fitness.
         self.time_spent = 0  # Used to check how long the car has been alive
+        self.prev_checkpoint_dist = float('inf')  # Last distance to the current checkpoint (for progress reward).
+        self.checkpoints_completed = 0  # How many checkpoints this car has hit.
 
         # Setup car image.
         # Load car image to the variable: surface.
@@ -215,6 +217,12 @@ class Car(pygame.sprite.Sprite):
             self.steering_input = 1.0
         else:
             self.steering_input = 0.0
+
+    # Function to set continuous PPO-style controls (each channel in [-1, 1], brake uses abs).
+    def apply_continuous(self, throttle, brake, steer):
+        self.throttle = float(max(-1.0, min(1.0, throttle)))
+        self.brake_force = 1.0 if float(brake) > 0.05 else 0.0
+        self.steering_input = float(max(-1.0, min(1.0, steer)))
 
     # Function to update / refresh various things in program, such as: car position & angle, calculations, etc..
     def update(self, border, offset, dt):
@@ -373,20 +381,41 @@ class Car(pygame.sprite.Sprite):
 
     # Function to calculate the reward that should be given to the car.
     def get_reward(self):
-        reward = 0
+        # Basic reward: checkpoint progress + a little speed pay (no anti-wobble / drift yet).
+        reward = 0.0
+        n = len(self.checkpoints)
+        if n == 0:
+            return 0.0
+
+        # Target index depends on drive direction around the track.
         if self.reverse:
-            if int(math.sqrt(math.pow(self.checkpoints[self.current_checkpoint - 1][0] - self.center[0], 2) + math.pow(self.checkpoints[self.current_checkpoint - 1][1] - self.center[1], 2))) <= 50:
-                reward += 100
-                if self.current_checkpoint - 1 == len(self.checkpoints):
-                    self.current_checkpoint = 0
-                else:
-                    self.current_checkpoint -= 1
-        elif not self.reverse:
-            if int(math.sqrt(math.pow(self.checkpoints[self.current_checkpoint][0] - self.center[0], 2) + math.pow(self.checkpoints[self.current_checkpoint][1] - self.center[1], 2))) <= 50:
-                reward += 100
-                if self.current_checkpoint + 1 == len(self.checkpoints):
-                    self.current_checkpoint = 0
-                else:
-                    self.current_checkpoint += 1
+            target_index = (self.current_checkpoint - 1) % n
+        else:
+            target_index = self.current_checkpoint % n
+
+        target = self.checkpoints[target_index]
+        current_dist = math.hypot(
+            target[0] - self.center[0],
+            target[1] - self.center[1],
+        )  # Distance to the active checkpoint.
+
+        # Dense shaping: reward getting closer to the active checkpoint.
+        if self.prev_checkpoint_dist != float('inf'):
+            progress = self.prev_checkpoint_dist - current_dist
+            reward += progress * 0.2
+        self.prev_checkpoint_dist = current_dist
+
+        # Checkpoint hit  -  big bonus, then advance.
+        if current_dist <= 60:
+            reward += 50.0 + min(self.speed / 50.0, 2.0) * 20.0
+            self.checkpoints_completed += 1
+            if self.reverse:
+                self.current_checkpoint = target_index
+            else:
+                self.current_checkpoint = (target_index + 1) % n
+            self.prev_checkpoint_dist = float('inf')
+
+        # Light speed pay so crawling is discouraged.
+        reward += min(self.speed / self.max_velocity, 1.0) * 0.5
 
         return reward
