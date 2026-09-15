@@ -1,2 +1,4 @@
-pygame~=2.0.1
-neat~=0.4.1
+pygame>=2.0
+neat-python
+numpy
+moderngl
