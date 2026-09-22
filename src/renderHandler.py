@@ -1,10 +1,12 @@
 # Import libraries.
+import math  # For line / rotation math.
+
 import moderngl  # OpenGL bindings used for GPU drawing.
 import numpy as np  # For matrix and color math.
 import pygame  # The game engine / window creation.
 
 
-# Class used to draw everything with OpenGL (maps, cars, textures for now).
+# Class used to draw everything with OpenGL (maps, cars, lines, text, buttons).
 class Renderer:
     # Function to set up the OpenGL window, shaders, and caches.
     def __init__(self, width, height, fullscreen=False, vsync=False):
@@ -22,28 +24,38 @@ class Renderer:
         self.width = width
         self.height = height
 
-        # Turn on blending for transparency.
+        # Turn on blending for transparency, and point size so soft circles work.
         self.ctx.enable(moderngl.BLEND)
         self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
+        try:
+            self.ctx.enable(moderngl.PROGRAM_POINT_SIZE)
+        except Exception:
+            pass
 
         # Texture cache: maps an id to (texture, width, height).
         self.texture_cache = {}
         self.next_texture_id = 0
 
-        # Build the basic textured-quad shader.
+        # Cache for text textures so we don't rebuild the same string every frame.
+        self.font_cache = {}
+
+        # Build all the shader programs we need.
         self.create_shaders()
 
         # Build the fullscreen quad used for blitting textures.
         self.create_quad()
+
+        # Build the simple geometry buffers for lines and circles.
+        self.create_geometry()
 
         # Offscreen framebuffer we draw into, then flip to the screen.
         self.render_texture = self.ctx.texture((width, height), 4)
         self.render_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
         self.fbo = self.ctx.framebuffer(color_attachments=[self.render_texture])
 
-        print('ModernGL Renderer initialized: ' + str(width) + 'x' + str(height))
+        print("ModernGL Renderer initialized: " + str(width) + "x" + str(height))
 
-    # Function to create shader programs (basic blit for now).
+    # Function to create all shader programs.
     def create_shaders(self):
         # Basic textured quad shader (color tint + alpha).
         self.basic_shader = self.ctx.program(
@@ -77,7 +89,38 @@ class Renderer:
             ''',
         )
 
-        # Simple blit / copy shader (no tint)  -  used when presenting the frame.
+        # Shader used when rotating a texture into a new texture.
+        self.rotation_shader = self.ctx.program(
+            vertex_shader='''
+                #version 330
+                in vec2 in_vert;
+                in vec2 in_texcoord;
+                out vec2 v_text;
+
+                uniform mat4 transform;
+                uniform mat4 projection;
+
+                void main() {
+                    v_text = in_texcoord;
+                    gl_Position = projection * transform * vec4(in_vert, 0.0, 1.0);
+                }
+            ''',
+            fragment_shader='''
+                #version 330
+                uniform sampler2D texture0;
+                uniform float alpha;
+
+                in vec2 v_text;
+                out vec4 f_color;
+
+                void main() {
+                    vec4 tex_color = texture(texture0, v_text);
+                    f_color = tex_color * vec4(1.0, 1.0, 1.0, alpha);
+                }
+            ''',
+        )
+
+        # Simple blit / copy shader (no tint).
         self.blit_shader = self.ctx.program(
             vertex_shader='''
                 #version 330
@@ -102,7 +145,94 @@ class Renderer:
             ''',
         )
 
-    # Function to create a unit quad for rendering.
+        # Solid filled rectangle shader.
+        self.rect_shader = self.ctx.program(
+            vertex_shader='''
+                #version 330
+                in vec2 in_vert;
+                uniform mat4 transform;
+                uniform mat4 projection;
+
+                void main() {
+                    gl_Position = projection * transform * vec4(in_vert, 0.0, 1.0);
+                }
+            ''',
+            fragment_shader='''
+                #version 330
+                uniform vec4 color;
+                uniform float alpha;
+                out vec4 f_color;
+
+                void main() {
+                    f_color = color * vec4(1.0, 1.0, 1.0, alpha);
+                }
+            ''',
+        )
+
+        # Line shader (same idea as the rect shader, drawn as lines).
+        self.line_shader = self.ctx.program(
+            vertex_shader='''
+                #version 330
+                in vec2 in_vert;
+                uniform mat4 transform;
+                uniform mat4 projection;
+
+                void main() {
+                    gl_Position = projection * transform * vec4(in_vert, 0.0, 1.0);
+                }
+            ''',
+            fragment_shader='''
+                #version 330
+                uniform vec4 color;
+                uniform float alpha;
+                out vec4 f_color;
+
+                void main() {
+                    f_color = color * vec4(1.0, 1.0, 1.0, alpha);
+                }
+            ''',
+        )
+
+        # Circle shader - one point, fragment shader makes it round.
+        self.circle_shader = self.ctx.program(
+            vertex_shader='''
+                #version 330
+                in vec2 in_vert;
+                in float in_radius;
+                out float v_radius;
+
+                uniform mat4 transform;
+                uniform mat4 projection;
+
+                void main() {
+                    v_radius = in_radius;
+                    gl_Position = projection * transform * vec4(in_vert, 0.0, 1.0);
+                    gl_PointSize = in_radius * 2.0;
+                }
+            ''',
+            fragment_shader='''
+                #version 330
+                in float v_radius;
+                uniform vec4 color;
+                uniform float alpha;
+                out vec4 f_color;
+
+                void main() {
+                    vec2 coord = gl_PointCoord - vec2(0.5);
+                    float dist = length(coord);
+
+                    if (dist > 0.5) {
+                        discard;
+                    }
+
+                    // Soften the circle edge a bit.
+                    float edge = 1.0 - smoothstep(0.45, 0.5, dist);
+                    f_color = color * vec4(1.0, 1.0, 1.0, alpha * edge);
+                }
+            ''',
+        )
+
+    # Function to create a unit quad for rendering
     def create_quad(self):
         vertices = np.array([
             # x, y,      u, v
@@ -113,17 +243,62 @@ class Renderer:
         ], dtype='f4')
 
         vertices = np.ascontiguousarray(vertices)
+
         self.quad_vbo = self.ctx.buffer(vertices)
 
         # Make a VAO for each shader that uses the quad.
         self.basic_vao = self.ctx.simple_vertex_array(
             self.basic_shader, self.quad_vbo, 'in_vert', 'in_texcoord'
         )
+        self.rotation_vao = self.ctx.simple_vertex_array(
+            self.rotation_shader, self.quad_vbo, 'in_vert', 'in_texcoord'
+        )
         self.blit_vao = self.ctx.simple_vertex_array(
             self.blit_shader, self.quad_vbo, 'in_vert', 'in_texcoord'
         )
 
-    # Function to create orthographic projection matrix - Pygame coordinate system (Y down).
+        # Rectangle vertices (no texture coords needed for solid rects).
+        rect_vertices = np.array([
+            -1.0, -1.0,
+            1.0, -1.0,
+            -1.0, 1.0,
+            1.0, 1.0,
+        ], dtype='f4')
+
+        rect_vertices = np.ascontiguousarray(rect_vertices)
+        self.rect_vbo = self.ctx.buffer(rect_vertices)
+        self.rect_vao = self.ctx.simple_vertex_array(
+            self.rect_shader, self.rect_vbo, 'in_vert'
+        )
+
+    # Function to create geometry buffers for lines and circles
+    def create_geometry(self):
+        # Unit line along X: (-1, 0) -> (1, 0).
+        # Transform scales length on X and thickness on Y, then rotates
+        # so a diagonal line is just this unit line stretched and spun.
+        line_vertices = np.array([
+            -1.0, 0.0,
+            1.0, 0.0,
+        ], dtype='f4')
+
+        line_vertices = np.ascontiguousarray(line_vertices)
+        self.line_vbo = self.ctx.buffer(line_vertices)
+        self.line_vao = self.ctx.simple_vertex_array(
+            self.line_shader, self.line_vbo, 'in_vert'
+        )
+
+        # Circle geometry is just one point; the shader turns it into a soft circle.
+        circle_vertices = np.array([
+            0.0, 0.0, 1.0,  # x, y, radius
+        ], dtype='f4')
+
+        circle_vertices = np.ascontiguousarray(circle_vertices)
+        self.circle_vbo = self.ctx.buffer(circle_vertices)
+        self.circle_vao = self.ctx.simple_vertex_array(
+            self.circle_shader, self.circle_vbo, 'in_vert', 'in_radius'
+        )
+
+    # Function to create orthographic projection matrix - Pygame coordinate system (Y down)
     def get_projection_matrix(self):
         matrix = np.array([
             [2.0 / self.width, 0.0, 0.0, -1.0],
@@ -134,7 +309,7 @@ class Renderer:
 
         return np.ascontiguousarray(matrix.T)
 
-    # Function to create transformation matrix for positioning.
+    # Function to create transformation matrix for positioning and rotation
     def create_transform_matrix(self, x, y, width, height, angle=0.0):
         # Center point of the quad in screen space.
         tx = x + width / 2.0
@@ -152,6 +327,37 @@ class Renderer:
         transform = np.array([
             [sx * cos_a, -sx * sin_a, 0.0, tx],
             [sy * sin_a, sy * cos_a, 0.0, ty],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0]
+        ], dtype='f4').T
+
+        return np.ascontiguousarray(transform)
+
+    # Function to make a transform matrix for a line segment.
+    # Unit geometry is a horizontal line (-1,0)->(1,0).
+    # We scale (length, thickness), then rotate.
+    def create_line_transform_matrix(self, x1, y1, x2, y2, width=1.0):
+        dx = x2 - x1
+        dy = y2 - y1
+        length = math.sqrt(dx * dx + dy * dy)
+        if length < 1e-6:
+            length = 1e-6
+        angle = math.atan2(dy, dx)
+
+        # Move the line so its middle sits at the midpoint of the two ends.
+        tx = (x1 + x2) / 2.0
+        ty = (y1 + y2) / 2.0
+
+        cos_a = math.cos(angle)
+        sin_a = math.sin(angle)
+
+        # Scale length on X and thickness on Y, then rotate into place.
+        sx = length / 2.0
+        sy = max(width, 1.0) / 2.0
+
+        transform = np.array([
+            [sx * cos_a, -sy * sin_a, 0.0, tx],
+            [sx * sin_a, sy * cos_a, 0.0, ty],
             [0.0, 0.0, 1.0, 0.0],
             [0.0, 0.0, 0.0, 1.0]
         ], dtype='f4').T
@@ -183,18 +389,178 @@ class Renderer:
 
         return texture_id
 
-    # Function to free a texture from memory.
+    # Function to create a texture from text
+    def create_text_texture(self, font, text, color=(0, 0, 0, 255)):
+        # If color came in as a hex string, turn it into an RGBA tuple.
+        if isinstance(color, str):
+            color = self.hex_to_rgba(color)
+
+        # Render the text onto a pygame surface first.
+        text_surface = font.render(text, True, color[:3])
+
+        # If the color has alpha < 255, multiply that onto the text surface.
+        if len(color) == 4 and color[3] < 255:
+            alpha_surface = pygame.Surface(text_surface.get_size(), pygame.SRCALPHA)
+            alpha_surface.fill((255, 255, 255, color[3]))
+            text_surface.blit(alpha_surface, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+        return self.load_surface(text_surface)
+
+    # Function to free a texture from memory
     def unload_texture(self, texture_id):
         if texture_id in self.texture_cache:
             texture, _, _ = self.texture_cache[texture_id]
             texture.release()
             del self.texture_cache[texture_id]
 
-    # Function to clear the screen with a color.
+    # Function to clear the screen with a color
     def clear(self, color=(0, 0, 0, 255)):
         r, g, b, a = color
         self.fbo.use()
         self.ctx.clear(r / 255.0, g / 255.0, b / 255.0, a / 255.0)
+
+    # ----- Drawing functions -----
+
+    # Function to draw a rectangle with optional transparency and rounded corners
+    def draw_rectangle(self, x, y, width, height, color="#FFFFFF", alpha=1.0, border_radius=0):
+        # Turn hex / tuple color into r,g,b,a ints.
+        if isinstance(color, str) and color.startswith("#"):
+            color = color.lstrip("#")
+            if len(color) == 6:
+                r = int(color[0:2], 16)
+                g = int(color[2:4], 16)
+                b = int(color[4:6], 16)
+                a = 255
+            else:
+                r = int(color[0:2], 16)
+                g = int(color[2:4], 16)
+                b = int(color[4:6], 16)
+                a = int(color[6:8], 16) if len(color) == 8 else 255
+        elif isinstance(color, tuple):
+            if len(color) == 3:
+                r, g, b = color
+                a = 255
+            else:
+                r, g, b, a = color
+        else:
+            r, g, b, a = 255, 255, 255, 255
+
+        # If we need rounded corners or per-pixel alpha, draw with pygame then upload.
+        if border_radius > 0 or (isinstance(color, tuple) and len(color) == 4):
+            # Make a small pygame surface and draw the rect onto it.
+            rect_surface = pygame.Surface((int(width), int(height)), pygame.SRCALPHA)
+            rect_surface.fill((0, 0, 0, 0))  # Start fully transparent.
+
+            # Draw with rounded corners if border_radius was set.
+            if border_radius > 0:
+                pygame.draw.rect(rect_surface, (r, g, b, a),
+                                 rect_surface.get_rect(),
+                                 border_radius=border_radius)
+            else:
+                pygame.draw.rect(rect_surface, (r, g, b, a), rect_surface.get_rect())
+
+            # Upload that surface and blit it, then free the temp texture.
+            texture_id = self.load_surface(rect_surface)
+            self.blit(texture_id, x, y, alpha=alpha)
+            self.unload_texture(texture_id)
+        else:
+            # Plain rectangle - just use the shader (faster than a pygame surface).
+            projection = self.get_projection_matrix()
+            transform = self.create_transform_matrix(x, y, width, height)
+
+            self.rect_shader['projection'].write(projection)
+            self.rect_shader['transform'].write(transform)
+            self.rect_shader['color'].value = (r / 255.0, g / 255.0, b / 255.0, a / 255.0)
+            self.rect_shader['alpha'].value = alpha
+
+            # Draw the rectangle.
+            self.fbo.use()
+            self.rect_vao.render(moderngl.TRIANGLE_STRIP)
+
+    # Function to draw text on screen
+    def draw_text(self, x, y, font, text, color="#000000", alpha=1.0):
+        # Reuse a cached text texture if we already made this string/color.
+        color_tuple = self.hex_to_rgba(color) if isinstance(color, str) else color
+        text_key = str(font.get_height()) + "_" + str(text) + "_" + str(color_tuple)
+
+        if text_key in self.font_cache:
+            texture_id = self.font_cache[text_key]
+        else:
+            # Cap the font cache so changing HUD numbers doesn't fill up GPU memory forever.
+            if len(self.font_cache) > 120:
+                old_key = next(iter(self.font_cache))
+                old_id = self.font_cache.pop(old_key)
+                self.unload_texture(old_id)
+            texture_id = self.create_text_texture(font, text, color_tuple)
+            self.font_cache[text_key] = texture_id
+
+        # Draw the text texture.
+        self.blit(texture_id, x, y, alpha=alpha)
+
+    # Function to draw a line between two points
+    def draw_line(self, x1, y1, x2, y2, color="#FFFFFF", width=1.0, alpha=1.0):
+        # Turn hex / tuple color into r,g,b,a ints.
+        if isinstance(color, str):
+            r, g, b, a = self.hex_to_rgba(color)
+        elif isinstance(color, tuple):
+            if len(color) == 3:
+                r, g, b = color
+                a = 255
+            else:
+                r, g, b, a = color
+        else:
+            r, g, b, a = 255, 255, 255, 255
+
+        # Build projection + transform for this line segment.
+        projection = self.get_projection_matrix()
+        transform = self.create_line_transform_matrix(x1, y1, x2, y2, width)
+
+        # Feed the shader its projection / transform / color / alpha.
+        self.line_shader['projection'].write(projection)
+        self.line_shader['transform'].write(transform)
+        self.line_shader['color'].value = (r / 255.0, g / 255.0, b / 255.0, a / 255.0)
+        self.line_shader['alpha'].value = alpha
+
+        # Draw the line (GL line width for thickness; transform handles the endpoints).
+        self.fbo.use()
+        try:
+            self.ctx.line_width = max(float(width), 1.0)
+        except Exception:
+            pass
+        self.line_vao.render(moderngl.LINES)
+
+    # Function to draw a circle
+    def draw_circle(self, x, y, radius, color="#FFFFFF", alpha=1.0):
+        # Turn hex / tuple color into r,g,b,a ints.
+        if isinstance(color, str):
+            r, g, b, a = self.hex_to_rgba(color)
+        elif isinstance(color, tuple):
+            if len(color) == 3:
+                r, g, b = color
+                a = 255
+            else:
+                r, g, b, a = color
+        else:
+            r, g, b, a = 255, 255, 255, 255
+
+        # Build projection + transform so the circle sits at (x, y).
+        projection = self.get_projection_matrix()
+        transform = self.create_transform_matrix(x - radius, y - radius, radius * 2, radius * 2)
+
+        # Write the radius into the circle vertex buffer.
+        circle_data = np.array([radius], dtype='f4')
+        self.circle_vbo.write(circle_data.tobytes(), offset=8)  # Radius sits at float index 2.
+
+        # Feed the shader its projection / transform / color / alpha.
+        self.circle_shader['projection'].write(projection)
+        self.circle_shader['transform'].write(transform)
+        self.circle_shader['color'].value = (r / 255.0, g / 255.0, b / 255.0, a / 255.0)
+        self.circle_shader['alpha'].value = alpha
+
+        # Draw the circle as a GL point sprite.
+        self.fbo.use()
+        self.ctx.point_size = radius * 2
+        self.circle_vao.render(moderngl.POINTS)
 
     # Function to draw a texture at the specified position.
     def blit(self, texture_id, x, y, width=None, height=None, alpha=1.0, source_rect=None):
@@ -225,7 +591,120 @@ class Renderer:
         self.fbo.use()
         self.basic_vao.render(moderngl.TRIANGLE_STRIP)
 
-    # Function to display the rendered frame.
+    # ----- Remaining renderer methods -----
+
+
+    # Function to rotate a texture and return a new texture ID.
+    # Meant to match pygame.transform.rotate() behavior.
+    def rotate(self, texture_id, angle_degrees):
+        if texture_id not in self.texture_cache:
+            return texture_id
+
+        texture, width, height = self.texture_cache[texture_id]
+
+        # Turn degrees into radians.
+        angle_rad = np.radians(angle_degrees)
+
+        # New bounding box size after rotation (same math pygame uses).
+        cos_a = abs(np.cos(angle_rad))
+        sin_a = abs(np.sin(angle_rad))
+        new_width = int(width * cos_a + height * sin_a)
+        new_height = int(width * sin_a + height * cos_a)
+
+        # Make a new texture big enough for the rotated image.
+        rotated_texture = self.ctx.texture((new_width, new_height), 4)
+        rotated_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+        rotated_fbo = self.ctx.framebuffer(color_attachments=[rotated_texture])
+
+        # Clear the new texture to fully transparent.
+        rotated_fbo.use()
+        self.ctx.clear(0.0, 0.0, 0.0, 0.0)
+
+        # Bind the original texture so the shader can sample it.
+        texture.use(location=0)
+
+        # Use a normal orthographic projection here (no Y flip).
+        projection = np.array([
+            [2.0 / new_width, 0.0, 0.0, -1.0],
+            [0.0, -2.0 / new_height, 0.0, 1.0],  # Standard top-down Y for the rotate pass.
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0]
+        ], dtype='f4')
+        projection = np.ascontiguousarray(projection.T)
+
+        # Build the transform that centers + rotates the original quad.
+        center_x = new_width / 2
+        center_y = new_height / 2
+
+        # Use angle_degrees as-is; pygame rotates counter-clockwise.
+        angle_rad_gl = np.radians(angle_degrees)  # No need to negate the angle.
+
+        # Half-size scale (unit quad goes from -1..1).
+        sx = width / 2.0
+        sy = height / 2.0
+
+        # Build transform: scale, rotate, put at center of the new texture.
+        cos_a_gl = np.cos(angle_rad_gl)
+        sin_a_gl = np.sin(angle_rad_gl)
+
+        transform = np.array([
+            [sx * cos_a_gl, -sx * sin_a_gl, 0.0, center_x],
+            [sy * sin_a_gl, sy * cos_a_gl, 0.0, center_y],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0]
+        ], dtype='f4')
+        transform = np.ascontiguousarray(transform.T)
+
+        # Feed the shader its projection / transform / color / alpha.
+        self.rotation_shader['projection'].write(projection)
+        self.rotation_shader['transform'].write(transform)
+        self.rotation_shader['texture0'].value = 0
+        self.rotation_shader['alpha'].value = 1.0
+
+        # Draw the rotated quad into the new texture.
+        self.rotation_vao.render(moderngl.TRIANGLE_STRIP)
+
+        # Stick the new texture in the cache and give it an id.
+        new_texture_id = self.next_texture_id
+        self.next_texture_id += 1
+        self.texture_cache[new_texture_id] = (rotated_texture, new_width, new_height)
+
+        # Switch back to the main offscreen framebuffer. to the main offscreen framebuffer.
+        self.fbo.use()
+
+        return new_texture_id
+
+    # Function to scale a texture and return a new texture ID.
+    def scale(self, texture_id, new_width, new_height):
+        if texture_id not in self.texture_cache:
+            return texture_id
+
+        texture, width, height = self.texture_cache[texture_id]
+
+        # Make a new texture at the requested size.
+        scaled_texture = self.ctx.texture((new_width, new_height), 4)
+        scaled_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+        scaled_fbo = self.ctx.framebuffer(color_attachments=[scaled_texture])
+
+        # Draw the old texture stretched into the new one.
+        scaled_fbo.use()
+        self.ctx.clear(0.0, 0.0, 0.0, 0.0)
+
+        texture.use(location=0)
+        self.blit_shader['texture0'].value = 0
+        self.blit_vao.render(moderngl.TRIANGLE_STRIP)
+
+        # Stick the new texture in the cache and give it an id.
+        new_texture_id = self.next_texture_id
+        self.next_texture_id += 1
+        self.texture_cache[new_texture_id] = (scaled_texture, new_width, new_height)
+
+        # Switch back to the main offscreen framebuffer.
+        self.fbo.use()
+
+        return new_texture_id
+
+    # Function to display the rendered frame
     def flip(self):
         # Copy the offscreen framebuffer onto the real screen.
         self.ctx.screen.use()
@@ -241,20 +720,92 @@ class Renderer:
         self.fbo.use()
         self.ctx.clear(0.0, 0.0, 0.0, 0.0)
 
-    # Function to get screen dimensions.
+    # Function to get screen dimensions
     def get_size(self):
         return (self.width, self.height)
 
-    # Function to release all resources.
+    # Function to draw a rectangle (filled or outline).
+    def draw_rect(self, color, rect, width=0):
+        x, y, w, h = rect
+        r, g, b, a = color
+
+        if width == 0:
+            # Filled rectangle - just call draw_rectangle.
+            self.draw_rectangle(x, y, w, h, color, a / 255.0)
+        else:
+            # Outline rectangle - draw four thin filled rects as the border.
+            # Top edge
+            self.draw_rectangle(x, y, w, width, color, a / 255.0)
+            # Bottom edge
+            self.draw_rectangle(x, y + h - width, w, width, color, a / 255.0)
+            # Left edge
+            self.draw_rectangle(x, y + width, width, h - 2 * width, color, a / 255.0)
+            # Right edge
+            self.draw_rectangle(x + w - width, y + width, width, h - 2 * width, color, a / 255.0)
+
+    # Function to convert hex color to RGBA tuple
+    def hex_to_rgba(self, hex_color):
+        if isinstance(hex_color, tuple):
+            return hex_color
+
+        hex_color = hex_color.lstrip("#")
+        if len(hex_color) == 6:
+            r = int(hex_color[0:2], 16)
+            g = int(hex_color[2:4], 16)
+            b = int(hex_color[4:6], 16)
+            return (r, g, b, 255)
+        elif len(hex_color) == 8:
+            r = int(hex_color[0:2], 16)
+            g = int(hex_color[2:4], 16)
+            b = int(hex_color[4:6], 16)
+            a = int(hex_color[6:8], 16)
+            return (r, g, b, a)
+        return (0, 0, 0, 255)
+
+    # Function to release all resources
     def cleanup(self):
+        # Free everything in the font / text cache.
+        for texture_id in list(self.font_cache.values()):
+            if texture_id in self.texture_cache:
+                texture, _, _ = self.texture_cache[texture_id]
+                texture.release()
+                del self.texture_cache[texture_id]
+
         # Free every texture we still have cached.
         for texture_id in list(self.texture_cache.keys()):
             self.unload_texture(texture_id)
 
         # Release the GL buffers / VAOs / framebuffer / context.
         self.quad_vbo.release()
+        self.rect_vbo.release()
+        self.line_vbo.release()
+        self.circle_vbo.release()
         self.basic_vao.release()
+        self.rotation_vao.release()
         self.blit_vao.release()
+        self.rect_vao.release()
+        self.line_vao.release()
+        self.circle_vao.release()
         self.render_texture.release()
         self.fbo.release()
         self.ctx.release()
+
+
+# Function to draw a rectangle (thin wrapper).
+def draw_rectangle(renderer, x, y, width, height, color="#FFFFFF", alpha=1.0):
+    renderer.draw_rectangle(x, y, width, height, color, alpha)
+
+
+# Function to draw text (thin wrapper).
+def draw_text(renderer, x, y, font, text, color="#000000", alpha=1.0):
+    renderer.draw_text(x, y, font, text, color, alpha)
+
+
+# Function to draw a line (thin wrapper).
+def draw_line(renderer, x1, y1, x2, y2, color="#FFFFFF", width=1.0, alpha=1.0):
+    renderer.draw_line(x1, y1, x2, y2, color, width, alpha)
+
+
+# Function to draw a circle (thin wrapper).
+def draw_circle(renderer, x, y, radius, color="#FFFFFF", alpha=1.0):
+    renderer.draw_circle(x, y, radius, color, alpha)
