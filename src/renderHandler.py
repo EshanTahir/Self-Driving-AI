@@ -591,8 +591,234 @@ class Renderer:
         self.fbo.use()
         self.basic_vao.render(moderngl.TRIANGLE_STRIP)
 
-    # ----- Remaining renderer methods -----
+    # ----- Button system -----
 
+    # Class used to make clickable UI buttons on top of the renderer.
+    class Button:
+        # Function to set up a button (colors, text, images, sounds, etc.).
+        def __init__(self, renderer, font, x=0, y=0, width=150, height=100,
+                     outline_width=6, image_outline=False, aa=False,
+                     button_type="procedural", selected_box_color="#196985",
+                     selected_text_color="#b2b2b2", hover_box_color="#2596be",
+                     hover_text_color="#ffffff", box_color="#ffffff",
+                     text_color="#2596be", outline_color="#000000",
+                     text="button", selected_button_image=None,
+                     hover_button_image=None, button_image=None,
+                     hover_sound=None, click_sound=None, active=True,
+                     click_type="left"):
+
+            self.renderer = renderer
+            self.clicked_down = False
+            self.clicked_up = False
+            self.hover = False
+
+            self.button_type = button_type
+            self.click_type = click_type
+
+            # Keep colors as strings so text/texture caching keys stay simple.
+            self.selected_box_color = selected_box_color
+            self.selected_text_color = selected_text_color
+            self.hover_box_color = hover_box_color
+            self.hover_text_color = hover_text_color
+            self.box_color = box_color
+            self.text_color = text_color
+            self.outline_width = outline_width
+            self.outline_color = outline_color
+            self.image_outline = image_outline
+
+            self.text = text
+            self.font = font
+            self.aa = aa
+
+            self.x = x
+            self.y = y
+            self.width = width
+            self.height = height
+
+            self.active = active
+
+            self.hover_sound = hover_sound
+            self.click_sound = click_sound
+
+            self.hover_sound_played = False
+
+            # Cache for this button's text textures (normal / hover / selected).
+            self.text_cache = {}
+
+            if self.button_type == "procedural" and button_image is None:
+                # Procedural button - outline rect + box rect, text drawn with the renderer.
+                self.outline_rect = (x - outline_width / 2, y - outline_width / 2,
+                                     width + outline_width, height + outline_width)
+                self.button_rect = (x, y, width, height)
+
+                # Pre-make text textures for normal / hover / selected.
+                self.create_text_textures()
+
+            elif self.button_type == "image" and button_image is not None:
+                # Image-based button - load the button images as textures.
+                self.button_image_id = renderer.load_surface(button_image)
+                self.selected_button_image_id = renderer.load_surface(
+                    selected_button_image) if selected_button_image else None
+                self.hover_button_image_id = renderer.load_surface(hover_button_image) if hover_button_image else None
+
+                self.button_rect = (x, y, button_image.get_width(), button_image.get_height())
+
+            else:
+                raise ValueError('Button_type is not procedural or image')
+
+        # Function to create text textures for all button states
+        def create_text_textures(self):
+            # Normal (idle) text
+            normal_key = "normal_" + str(self.text) + "_" + str(self.text_color)
+            if normal_key not in self.text_cache:
+                self.text_cache[normal_key] = self.renderer.create_text_texture(
+                    self.font, self.text, self.renderer.hex_to_rgba(self.text_color))
+
+            # Hover text
+            hover_key = "hover_" + str(self.text) + "_" + str(self.hover_text_color)
+            if hover_key not in self.text_cache:
+                self.text_cache[hover_key] = self.renderer.create_text_texture(
+                    self.font, self.text, self.renderer.hex_to_rgba(self.hover_text_color))
+
+            # Selected / clicked text
+            selected_key = "selected_" + str(self.text) + "_" + str(self.selected_text_color)
+            if selected_key not in self.text_cache:
+                self.text_cache[selected_key] = self.renderer.create_text_texture(
+                    self.font, self.text, self.renderer.hex_to_rgba(self.selected_text_color))
+
+        # Function to display the button using the renderer
+        def display_button(self):
+            if self.button_type == "procedural":
+                # Draw the outline behind the box.
+                self.renderer.draw_rectangle(
+                    self.outline_rect[0], self.outline_rect[1],
+                    self.outline_rect[2], self.outline_rect[3],
+                    self.outline_color
+                )
+
+                # Pick box color + which text texture based on click / hover state.
+                if self.clicked_down:
+                    box_color = self.selected_box_color
+                    text_key = "selected_" + str(self.text) + "_" + str(self.selected_text_color)
+                elif self.hover:
+                    box_color = self.hover_box_color
+                    text_key = "hover_" + str(self.text) + "_" + str(self.hover_text_color)
+                else:
+                    box_color = self.box_color
+                    text_key = "normal_" + str(self.text) + "_" + str(self.text_color)
+
+                # Draw the button box on top of the outline.
+                self.renderer.draw_rectangle(
+                    self.button_rect[0], self.button_rect[1],
+                    self.button_rect[2], self.button_rect[3],
+                    box_color
+                )
+
+                # Draw the text centered in the box.
+                if text_key in self.text_cache:
+                    text_texture_id = self.text_cache[text_key]
+                    # Center the text inside the button box.
+                    text_width = self.renderer.texture_cache[text_texture_id][1]
+                    text_height = self.renderer.texture_cache[text_texture_id][2]
+                    text_x = self.x + (self.width - text_width) // 2
+                    text_y = self.y + (self.height - text_height) // 2
+                    self.renderer.blit(text_texture_id, text_x, text_y)
+
+            elif self.button_type == "image":
+                # Pick which button image to show based on click / hover state.
+                if self.clicked_down and self.selected_button_image_id is not None:
+                    image_id = self.selected_button_image_id
+                elif self.hover and self.hover_button_image_id is not None:
+                    image_id = self.hover_button_image_id
+                else:
+                    image_id = self.button_image_id
+
+                # Draw the button image.
+                self.renderer.blit(image_id, self.x, self.y)
+
+        # Function to check for button clicks
+        def click_check(self, cursor_rect, events):
+            # Check if the cursor is over this button.
+            cursor_x, cursor_y = cursor_rect.topleft
+            button_rect = pygame.Rect(self.button_rect)
+
+            if button_rect.collidepoint(cursor_x, cursor_y):
+                if self.click_type == "left":
+                    if not self.clicked_down and "left_mouse_button_down" in events:
+                        self.clicked_down = True
+                        self.hover = False
+                    elif not self.clicked_up and "left_mouse_button_up" in events:
+                        if self.click_sound is not None:
+                            pygame.mixer.Sound.play(self.click_sound)
+                        self.clicked_down = False
+                        self.clicked_up = True
+                        self.hover = False
+                    elif "left_mouse_button_down" not in events and "left_mouse_button_up" not in events:
+                        if self.hover_sound is not None:
+                            if not self.hover_sound_played:
+                                pygame.mixer.Sound.play(self.hover_sound)
+                                self.hover_sound_played = True
+                        self.clicked_up = False
+                        self.hover = True
+                elif self.click_type == "right":
+                    if not self.clicked_down and "right_mouse_button_down" in events:
+                        self.clicked_down = True
+                        self.hover = False
+                    elif not self.clicked_up and "right_mouse_button_up" in events:
+                        if self.click_sound is not None:
+                            pygame.mixer.Sound.play(self.click_sound)
+                        self.clicked_down = False
+                        self.clicked_up = True
+                        self.hover = False
+                        return True
+                    elif "right_mouse_button_down" not in events and "right_mouse_button_up" not in events:
+                        if self.hover_sound is not None:
+                            if not self.hover_sound_played:
+                                pygame.mixer.Sound.play(self.hover_sound)
+                                self.hover_sound_played = True
+                        self.clicked_up = False
+                        self.hover = True
+                elif self.click_type == "scroll":
+                    if not self.clicked_down and "scroll_mouse_button_down" in events:
+                        self.clicked_down = True
+                        self.hover = False
+                    elif not self.clicked_up and "scroll_mouse_button_up" in events:
+                        if self.click_sound is not None:
+                            pygame.mixer.Sound.play(self.click_sound)
+                        self.clicked_down = False
+                        self.clicked_up = True
+                        self.hover = False
+                        return True
+            else:
+                self.clicked_down = False
+                self.clicked_up = False
+                self.hover = False
+                self.hover_sound_played = False
+
+            return False
+
+        # Function to update and display the button
+        def update(self, cursor_rect, events):
+            if self.active:
+                clicked = self.click_check(cursor_rect, events)
+                self.display_button()
+                return clicked
+            return False
+
+        # Function to clean up button resources
+        def cleanup(self):
+            if hasattr(self, 'text_cache'):
+                for texture_id in self.text_cache.values():
+                    self.renderer.unload_texture(texture_id)
+
+            if hasattr(self, 'button_image_id'):
+                self.renderer.unload_texture(self.button_image_id)
+            if hasattr(self, 'selected_button_image_id') and self.selected_button_image_id:
+                self.renderer.unload_texture(self.selected_button_image_id)
+            if hasattr(self, 'hover_button_image_id') and self.hover_button_image_id:
+                self.renderer.unload_texture(self.hover_button_image_id)
+
+    # ----- Remaining renderer methods -----
 
     # Function to rotate a texture and return a new texture ID.
     # Meant to match pygame.transform.rotate() behavior.
@@ -789,6 +1015,12 @@ class Renderer:
         self.render_texture.release()
         self.fbo.release()
         self.ctx.release()
+
+
+# Helper functions so older call sites still work.
+# Function to create a button (thin wrapper around Renderer.Button).
+def create_button(renderer, font, **kwargs):
+    return renderer.Button(renderer, font, **kwargs)
 
 
 # Function to draw a rectangle (thin wrapper).
