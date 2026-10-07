@@ -1,35 +1,53 @@
 # Import libraries.
+import json  # For loading checkpoint / spawn data from disk.
 import os  # For file handling.
 
 import pygame  # The game engine.
 
-from paths import IMAGES_DIR
+from paths import DATA_DIR, IMAGES_DIR
 
-map_1_real = pygame.image.load(os.path.join(IMAGES_DIR, 'map_1_real.png'))
-map_1_border = pygame.image.load(os.path.join(IMAGES_DIR, 'map_1_border.png'))
-map_1_checkpoints = [[2250, 1580], [2250, 2000], [2250, 2500], [2200, 2600], [2120, 2700], [1850, 2700], [1540, 2550], [1800, 2420], [2060,2280], [1800, 2150],
-                     [1530, 2000], [1800,1870], [2070,1725], [1950,1600], [1400,1600], [1280,1950], [1280,2200],
-                     [1280,2550], [1400,2890], [1700,2890], [2060,2890], [2500,2890], [2830,2800], [2830,2560],
-                     [2830,2300], [2830,2070], [2830,1800], [2830,1560], [2830,1300], [2830,1050], [2830,800],
-                     [2960,715], [3100,870], [3100,1870], [3100,2770], [3100, 2999], [3097,3100], [2710,3200], [2520,3143],
-                     [2343,3200], [2130,3143], [1950,3200], [1750,3143], [1550,3200], [1350,3143], [1150,3200],
-                     [880,3143], [650,3050], [640,2900], [640,1900], [640,850], [777,730], [1200,730], [1700,760],
-                     [1860,800], [2170,800], [2260,930], [2130,1070], [1720,1070], [1300,1070], [1180,1120],
-                     [1030,1210], [1180,1300], [1300, 1350], [1777, 1350], [2130, 1350]]
 
-map_1_spawn_points = [[[2200, 1440], 0, 270], [[2918, 3115], 37, 180]]
-map_1 = [map_1_real, map_1_border, map_1_spawn_points, map_1_checkpoints]
+# Function to load track checkpoint / spawn data from JSON, or fall back to hardcoded lists.
+def load_track_data(map_name, fallback_checkpoints, fallback_spawns):
+    # Prefer JSON written by checkpointMapper.py; fall back to the hardcoded lists.
+    json_path = os.path.join(DATA_DIR, map_name + '_checkpoints.json')
+    if os.path.isfile(json_path):
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)  # Load the JSON file into a dict.
+        checkpoints = [list(p) for p in data.get('checkpoints', fallback_checkpoints)]
+        spawn_points = data.get('spawn_points', fallback_spawns)
+        return checkpoints, spawn_points
+    return fallback_checkpoints, fallback_spawns  # JSON missing  -  use the hardcoded fallbacks.
 
-map_2_real = pygame.image.load(os.path.join(IMAGES_DIR, 'map_2_real.png'))
-map_2_border = pygame.image.load(os.path.join(IMAGES_DIR, 'map_2_border.png'))
-map_2_checkpoints = [[1202, 786], [1331, 786], [1459, 786], [1575, 810], [1597, 865], [1576, 912], [1459, 933],
-                     [1331, 933], [1202, 933], [1075, 933], [947, 933], [819, 933], [702, 911], [682, 861], [700, 809],
-                     [819, 770], [947, 770], [1075, 770]]
 
-map_2_spawn_points = [[[1072, 759], 0, 360], [[1072, 907], 9, 180]]
-map_2 = [map_2_real, map_2_border, map_2_spawn_points, map_2_checkpoints]
+# Map 3  -  the active track used by the NEAT simulation.
+map_3_real = pygame.image.load(os.path.join(IMAGES_DIR, 'map_3_real.png'))  # Visual track image.
+map_3_border = pygame.image.load(os.path.join(IMAGES_DIR, 'map_3_border.png'))  # Collision / x-ray mask.
 
-maps = [map_1, map_2]
+# Hardcoded fallbacks (used if the JSON file is missing).
+map_3_checkpoints_fallback = [
+    [1330, 1888], [1215, 1730], [1190, 1500], [1215, 1410], [1335, 1250],
+    [1530, 1135], [1740, 1120], [1930, 1230], [1985, 1445], [2090, 1640],
+    [2280, 1720], [2480, 1790], [2570, 1945], [2530, 2135], [2430, 2280],
+    [2360, 2465],     [2330, 2640], [2222, 2790], [2080, 2880], [1900, 2900],
+    [1860, 2910], [1710, 2910], [1560, 2810], [1440, 2690], [1390, 2530],
+    [1375, 2360], [1370, 2170], [1385, 2025],
+]
+map_3_spawns_fallback = [
+    [[1400, 2265], 0, 270],
+    [[1436, 2356], 0, 270],
+    [[1342, 2356], 0, 270],
+    [[1302, 2265], 0, 270],
+]
+
+map_3_checkpoints, map_3_spawn_points = load_track_data(
+    'map_3', map_3_checkpoints_fallback, map_3_spawns_fallback
+)
+
+# Pack map data: [real_image, border_image, spawn_points, checkpoints]
+map_3 = [map_3_real, map_3_border, map_3_spawn_points, map_3_checkpoints]
+
+maps = [map_3]  # Only maps listed here are used by the simulator.
 
 
 # Function to grab the list of available maps.
