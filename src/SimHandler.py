@@ -10,13 +10,17 @@ import pygame  # The game engine.
 import Camera
 import mapHandler
 import renderHandler
-from carHandler import Car
+from carHandler import CAR_SPRITES, Car, clear_shared_sprite_caches
 from paths import FONTS_DIR, IMAGES_DIR
 
 screen_width = 1280  # Set program x resolution.
 screen_height = 720  # Set program y resolution.
 PHYSICS_DT = 1.0 / 60.0  # Fixed physics step so dt jitter doesn't mess up the car model.
 MAX_FRAME_DT = 1.0 / 20.0  # Don't spiral if a frame hitches hard.
+MAX_PHYSICS_STEPS = 1  # Never catch up with extra steps when a frame is already late.
+AUTO_SKIP_NO_IMPROVE_MS = 7000  # Skip gen if best fitness stalls this long.
+AUTO_SKIP_MAX_GEN_MS = 30000  # Hard cap per generation.
+AUTO_SKIP_STUCK_MS = 4000  # Skip if cars never really get moving.
 
 generation = -1  # Variable to count generations.
 
@@ -45,8 +49,7 @@ def get_renderer():
 # Function to update button label and rebuild cached text textures for the new string.
 def set_button_text(button, text):
     button.text = text
-    if hasattr(button, 'create_text_textures'):
-        button.create_text_textures()
+    button.create_text_textures()
 
 
 # Function called by NEAT each generation to run the driving simulation.
@@ -106,42 +109,42 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
     map_real_texture_id = renderer.load_surface(map_real)
     map_border_texture_id = renderer.load_surface(map_border_surface)
 
-    # UI buttons (OpenGL versions of the old pygame buttons) if the renderer has them.
-    has_buttons = hasattr(renderer, 'Button')
-    if has_buttons:
-        skip_generation_button = renderer.Button(
-            renderer, font, screen_width - 110, screen_height - 60, 100, 50, text='Skip Gen'
+    # UI buttons (OpenGL versions of the old pygame buttons).
+    skip_generation_button = renderer.Button(
+        renderer, font, screen_width - 110, screen_height - 60, 100, 50, text="Skip Gen"
+    )
+    if draw_all:
+        toggle_draw_all_button = renderer.Button(
+            renderer, font, screen_width - 260, screen_height - 60, 140, 50, text="Draw Best"
         )
-        if draw_all:
-            toggle_draw_all_button = renderer.Button(
-                renderer, font, screen_width - 260, screen_height - 60, 140, 50, text='Draw Best'
-            )
-        else:
-            toggle_draw_all_button = renderer.Button(
-                renderer, font, screen_width - 260, screen_height - 60, 140, 50, text='Draw All'
-            )
+    else:
+        toggle_draw_all_button = renderer.Button(
+            renderer, font, screen_width - 260, screen_height - 60, 140, 50, text="Draw All"
+        )
 
-        if ai_view:
-            toggle_ai_view_button = renderer.Button(
-                renderer, font, screen_width - 410, screen_height - 60, 140, 50, text='Real View'
-            )
-        else:
-            toggle_ai_view_button = renderer.Button(
-                renderer, font, screen_width - 410, screen_height - 60, 140, 50, text='Computer Vision'
-            )
+    if ai_view:
+        toggle_ai_view_button = renderer.Button(
+            renderer, font, screen_width - 410, screen_height - 60, 140, 50, text="Real View"
+        )
+    else:
+        toggle_ai_view_button = renderer.Button(
+            renderer, font, screen_width - 410, screen_height - 60, 140, 50, text="Computer Vision"
+        )
 
     nets = []  # List to hold all the neural networks.
     cars = []  # List to hold all the cars and their data.
     camera = Camera.Camera_Group(screen_width, screen_height)
 
-    # Create one network + car per genome.
+    # Create one network + car per genome, with a random sprite color.
     car_id = 0
     for c, g in genomes:  # c = each car or maybe amount of cars, g = each genome.
         # Use NEAT library to create each neural network, with genome g, using 'conf', the config file.
         net = neat.nn.FeedForwardNetwork.create(g, conf)
         nets.append(net)  # Adds each neural network 'net', to the list 'nets' containing the networks.
         g.fitness = 0  # Sets the initial fitness benchmark for each genome to 0.
-        cars.append(Car(car_id, map_data))  # Add each car to the cars list.
+
+        sprite_config = random.choice(CAR_SPRITES)
+        cars.append(Car(car_id, map_data, renderer=renderer, sprite_config=sprite_config))  # Add each car to the cars list.
         car_id += 1
 
     start_time = pygame.time.get_ticks()  # Used for the generation timer.
@@ -149,6 +152,10 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
     cars_moved = False
     generation += 1  # Advance the generation counter.
     physics_accum = 0.0  # Accumulator for fixed-step physics.
+    best_fitness_ever = -1e18  # For auto-skip when learning stalls.
+    last_improve_tick = pygame.time.get_ticks()
+    hud_frame = 0  # Only rebuild chatty HUD strings every few frames.
+    hud_lines = ["Loading..."]
 
     # Main simulation loop for this generation.
     while True:
@@ -182,64 +189,57 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
                 renderer.cleanup()
                 shared_renderer = None
                 sys.exit(0)  # Exit the program.
+            if event.type == pygame.KEYDOWN and event.key in (pygame.K_SPACE, pygame.K_n):
+                events.append("skip_generation")
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 cursor_state = 1
-                events.append('left_mouse_button_down')
+                events.append("left_mouse_button_down")
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 cursor_state = 0
-                events.append('left_mouse_button_up')
+                events.append("left_mouse_button_up")
 
-        # Ask each living network for controls.
+        # Ask each living network for controls (skip dead cars  -  big win mid-gen).
         for index, car in enumerate(cars):  # For neural net ID, and car in the cars list,
             if not car.get_alive():
                 continue
             output = nets[index].activate(car.get_data())  # The output that the net 'returns' when given car data.
 
-            # Prefer continuous 3-output nets; fall back to discrete max-index.
-            if len(output) >= 3:
-                throttle_output = output[0]
-                brake_output = output[1]
-                steering_output = output[2]
-                commands = []
+            # 3 outputs: [throttle, brake, steering]
+            throttle_output = output[0]
+            brake_output = output[1]
+            steering_output = output[2]
+            commands = []
 
-                if brake_output > 0.5:
-                    commands.append('brake')
-                elif throttle_output < -0.3:
-                    commands.append('decelerate')
-                elif throttle_output > 0.3:
-                    commands.append('accelerate')
+            # Defining what the car does when it outputs certain values (accelerate, decelerate, brake, turn, etc..):
+            if brake_output > 0.5:
+                commands.append("brake")
+            elif throttle_output < -0.3:
+                commands.append("decelerate")
+            elif throttle_output > 0.3:
+                commands.append("accelerate")
 
-                if steering_output < -0.3:
-                    commands.append('left')
-                elif steering_output > 0.3:
-                    commands.append('right')
+            if steering_output < -0.3:
+                commands.append("left")
+            elif steering_output > 0.3:
+                commands.append("right")
 
-                if hasattr(car, 'input'):
-                    car.input(commands)
-            else:
-                i = output.index(max(output))
-                if hasattr(car, 'input'):
-                    commands = []
-                    if i == 0:
-                        commands.append('accelerate')
-                    elif i == 1:
-                        commands.append('decelerate')
-                    elif i == 2:
-                        commands.append('brake')
-                    if i == 3:
-                        commands.append('left')
-                    elif i == 4:
-                        commands.append('right')
-                    car.input(commands)
+            car.input(commands)
 
-        # Fixed-step physics.
+        # Fixed-step physics (capped substeps so a slow frame can't melt the CPU).
         offset = camera.get_offset()
-        while physics_accum >= PHYSICS_DT:
+        steps = 0
+        while physics_accum >= PHYSICS_DT and steps < MAX_PHYSICS_STEPS:
             for i, car in enumerate(cars):  # for each neural net, and car in cars list:
                 if car.get_alive():  # if the car is alive:
                     car.update(map_border, [int(offset[0]), int(offset[1])], PHYSICS_DT)  # Update the cars position etc..
                     genomes[i][1].fitness += car.get_reward()  # Add the reward to the neural networks genomes fitness.
+                    # Negative fitness = failed run  -  kill immediately.
+                    if genomes[i][1].fitness < 0:
+                        car.is_alive = False
             physics_accum -= PHYSICS_DT
+            steps += 1
+        if physics_accum > PHYSICS_DT:
+            physics_accum = 0.0  # Drop leftover time instead of catching up forever.
 
         for i, car in enumerate(cars):
             if car.get_alive():
@@ -260,69 +260,91 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
                     best_index = i
                     break
 
+        for i, car in enumerate(cars):
+            if not car.get_alive():
+                # Clamp bad fitness for cars that barely steered or went negative.
+                if genomes[i][1].fitness < 0:
+                    genomes[i][1].fitness = 0
+                if car.cumulative_steering < 10:
+                    genomes[i][1].fitness = 0
+
         if best_index is not None:
             best_car = cars[best_index]
             maximum_car_drawn = True
             m_id = best_car.id
-            m_acceleration = getattr(best_car, 'throttle', best_car.acceleration)
-            m_steering = best_car.steering
-            # Prefer position; fall back to center from older cars.
-            if hasattr(best_car, 'position'):
-                m_position_x = best_car.position[0]
-                m_position_y = best_car.position[1]
-            else:
-                m_position_x = best_car.center[0]
-                m_position_y = best_car.center[1]
+            m_acceleration = best_car.throttle
+            m_steering = math.degrees(best_car.steering)
+            m_position_x = best_car.position[0]
+            m_position_y = best_car.position[1]
             m_fitness = genomes[best_index][1].fitness
             m_speed = best_car.speed
-
-            # Follow the best car with the camera (smooth Camera if available).
-            if hasattr(camera, 'center_target_camera'):
-                try:
-                    camera.center_target_camera(best_car, dt)
-                except TypeError:
-                    camera.center_target_camera(best_car)
+            camera.center_target_camera(best_car, dt)  # Follow the best car with the camera.
             offset = camera.get_offset()
+
             ox, oy = offset[0], offset[1]
+            margin = 100
 
-            if ai_view and hasattr(best_car, 'draw_ai'):
-                # CV view  -  still uses car draw_ai if it talks to pygame; otherwise blit border.
-                renderer.blit(map_border_texture_id, int(0 - ox), int(0 - oy))
+            # Function to check if a car is roughly on screen (with a little margin).
+            def on_screen(car):
+                sx = car.position.x - ox
+                sy = car.position.y - oy
+                return -margin <= sx < screen_width + margin and -margin <= sy < screen_height + margin
+
+            if ai_view:
+                # CV: x-ray track + procedural box cars.
+                best_car.update_skid_marks(dt)
+                best_car.draw_ai(offset, font, border_texture_id=map_border_texture_id)
+                if draw_all:
+                    for i, car in enumerate(cars):
+                        if not car.get_alive() or i == best_index or not on_screen(car):
+                            continue
+                        car.draw_ai(
+                            offset, font,
+                            border_texture_id=map_border_texture_id,
+                            draw_background=False,
+                            draw_radar=False,
+                        )
             else:
-                # Real view: track + car sprite via GPU blit of the map.
+                # Real view: track + stacked sprites (draw-all is body-only for non-best).
                 renderer.blit(map_real_texture_id, int(0 - ox), int(0 - oy))
-
-            # Draw best car (pygame-style draw still works onto a surface we upload if needed).
-            # For this intermediate step we just show the map; car GPU draw arrives with later car layers.
+                best_car.update_skid_marks(dt)
+                if draw_all:
+                    for i, car in enumerate(cars):
+                        if not car.get_alive() or i == best_index or not on_screen(car):
+                            continue
+                        car.draw(
+                            dt, offset,
+                            draw_radar=False, draw_skid=False, draw_wheels=False,
+                        )
+                best_car.draw(dt, offset, draw_radar=True, draw_skid=True, draw_wheels=True)
 
         # Hit-test with a 1x1 rect at the mouse (cursor image is only for drawing).
-        if has_buttons:
-            cursor_hit = pygame.Rect(pygame.mouse.get_pos(), (1, 1))
-            skip_generation_button.update(cursor_hit, events)
-            toggle_draw_all_button.update(cursor_hit, events)
-            toggle_ai_view_button.update(cursor_hit, events)
+        cursor_hit = pygame.Rect(pygame.mouse.get_pos(), (1, 1))
+        skip_generation_button.update(cursor_hit, events)
+        toggle_draw_all_button.update(cursor_hit, events)
+        toggle_ai_view_button.update(cursor_hit, events)
 
-            skip_generation_button.active = True
-            toggle_draw_all_button.active = True
-            toggle_ai_view_button.active = True
+        skip_generation_button.active = True
+        toggle_draw_all_button.active = True
+        toggle_ai_view_button.active = True
 
-            if toggle_ai_view_button.clicked_up:
-                if ai_view:
-                    ai_view = False
-                    set_button_text(toggle_ai_view_button, 'Computer Vision')
-                else:
-                    ai_view = True
-                    set_button_text(toggle_ai_view_button, 'Real View')
+        if toggle_ai_view_button.clicked_up:
+            if ai_view:
+                ai_view = False
+                set_button_text(toggle_ai_view_button, 'Computer Vision')
+            else:
+                ai_view = True
+                set_button_text(toggle_ai_view_button, 'Real View')
 
-            if toggle_draw_all_button.clicked_up:
-                if draw_all:
-                    draw_all = False
-                    set_button_text(toggle_draw_all_button, 'Draw All')
-                else:
-                    draw_all = True
-                    set_button_text(toggle_draw_all_button, 'Draw Best')
+        if toggle_draw_all_button.clicked_up:
+            if draw_all:
+                draw_all = False
+                set_button_text(toggle_draw_all_button, 'Draw All')
+            else:
+                draw_all = True
+                set_button_text(toggle_draw_all_button, 'Draw Best')
 
-        # Stall / end-of-generation checks (manual skip only  -  no auto-skip yet).
+        # Stall / end-of-generation checks (manual skip + auto-skip).
         now_tick = pygame.time.get_ticks()
         elapsed_ms = now_tick - start_time
         average_velocity = [0, 0]
@@ -339,47 +361,68 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         if speed_mag > 5:
             cars_moved = True  # At least some cars actually got going.
 
-        user_skip = has_buttons and skip_generation_button.clicked_up
+        if f_list:
+            bf = max(f_list)
+            if bf > best_fitness_ever + 0.5:
+                best_fitness_ever = bf
+                last_improve_tick = now_tick  # Fitness improved  -  reset the stall timer.
+
+        user_skip = skip_generation_button.clicked_up or ("skip_generation" in events)
         if remain_cars == 0:
-            print('--No cars left--' + '\n')
+            print("--No cars left--" + "\n")
             break  # Breaks / exits out of the while loop.
         elif user_skip:
-            print('--User skipped generation--' + '\n')
+            print("--User skipped generation--" + "\n")
             break
-        elif elapsed_ms >= 5000 and not cars_moved:
-            print('--5 seconds passed cars not moving--' + '\n')
+        elif elapsed_ms >= AUTO_SKIP_STUCK_MS and not cars_moved:
+            print("--Auto-skip: cars never got moving--" + "\n")
             break
-        elif elapsed_ms >= 600000:
-            print('--10 minutes passed, ending generation--' + '\n')
+        elif elapsed_ms >= 3000 and remain_cars <= 6 and speed_mag < 1.5:
+            print("--Auto-skip: " + str(remain_cars) + " car(s) stuck--" + "\n")
+            break
+        elif cars_moved and (now_tick - last_improve_tick) >= AUTO_SKIP_NO_IMPROVE_MS:
+            print("--Auto-skip: no fitness improvement--" + "\n")
+            break
+        elif elapsed_ms >= AUTO_SKIP_MAX_GEN_MS:
+            print("--Auto-skip: max generation time--" + "\n")
             break
         if not maximum_car_drawn:
-            print("--Can't find best car--" + '\n')
+            print("--Can't find best car--" + "\n")
             break
 
-        # HUD panel + text.
-        gen_time = '{:.1f}'.format(elapsed_ms / 1000)
+        # HUD  -  refresh strings every 5 frames so font textures don't thrash.
+        hud_frame += 1
+        if hud_frame == 1 or hud_frame % 5 == 0:
+            gen_time = "{:.1f}".format(elapsed_ms / 1000)
+            m_id_s = str(m_id)
+            m_speed_s = "{:.0f}".format(m_speed)
+            m_acceleration_s = "{:.2f}".format(m_acceleration)
+            m_steering_s = "{:.0f}".format(m_steering)
+            m_pos_s = "(" + "{:.0f}".format(m_position_x) + ", " + "{:.0f}".format(m_position_y) + ")"
+            m_fitness_s = "{:.0f}".format(m_fitness)
+            remain_s = str(remain_cars)
+            fps_s = str(int(clock.get_fps()))
+            hud_lines = [
+                "Car Generation: " + str(generation),
+                "Generation Clock: " + gen_time + "s",
+                "Car ID: " + m_id_s,
+                "Speed: " + m_speed_s + "mph",
+                "Throttle: " + m_acceleration_s,
+                "Steering: " + m_steering_s + "°",
+                "Fitness: " + m_fitness_s,
+                "Coordinates: " + m_pos_s,
+                "Remaining Cars: " + remain_s,
+                "FPS: " + fps_s,
+            ]
+
         panel_x = screen_width / 150
         panel_y = screen_height / 1.35 - 20
-        if hasattr(renderer, 'draw_rectangle'):
-            renderer.draw_rectangle(panel_x, panel_y, 200, 200, '#000000', alpha=0.3)  # Semi-transparent HUD panel.
-        if hasattr(renderer, 'draw_text'):
-            hud_lines = [
-                'Car Generation: ' + str(generation),
-                'Generation Clock: ' + gen_time + 's',
-                'Car ID: ' + str(m_id),
-                'Speed: ' + '{:.0f}'.format(m_speed) + 'mph',
-                'Throttle: ' + '{:.2f}'.format(m_acceleration),
-                'Steering: ' + '{:.0f}'.format(m_steering) + '°',
-                'Fitness: ' + '{:.0f}'.format(m_fitness),
-                'Coordinates: (' + '{:.0f}'.format(m_position_x) + ', ' + '{:.0f}'.format(m_position_y) + ')',
-                'Remaining Cars: ' + str(remain_cars),
-                'FPS: ' + str(int(clock.get_fps())),
-            ]
-            text_x = panel_x + 10
-            line_y = panel_y + 8
-            line_h = 20
-            for li, line in enumerate(hud_lines):
-                renderer.draw_text(text_x, line_y + line_h * li, font, line, '#FFFFFF')  # Draw each HUD line.
+        renderer.draw_rectangle(panel_x, panel_y, 200, 200, '#000000', alpha=0.3)  # Semi-transparent HUD panel.
+        text_x = panel_x + 10
+        line_y = panel_y + 8
+        line_h = 20
+        for li, line in enumerate(hud_lines):
+            renderer.draw_text(text_x, line_y + line_h * li, font, line, '#FFFFFF')  # Draw each HUD line.
 
         # Draw the custom cursor on top.
         cursor_img_rect.center = pygame.mouse.get_pos()
@@ -390,11 +433,13 @@ def run_car(genomes, conf):  # Genomes are the individual cars dna makeup, speci
         clock.tick(tick)  # Cap FPS.
 
     # Generation finished  -  free per-generation GPU resources (keep the window).
+    for car in cars:
+        car.cleanup()
+    clear_shared_sprite_caches(renderer)
     renderer.unload_texture(map_real_texture_id)
     renderer.unload_texture(map_border_texture_id)
     for tex_id in cursor_texture_ids:
         renderer.unload_texture(tex_id)
-    if has_buttons:
-        skip_generation_button.cleanup()
-        toggle_draw_all_button.cleanup()
-        toggle_ai_view_button.cleanup()
+    skip_generation_button.cleanup()
+    toggle_draw_all_button.cleanup()
+    toggle_ai_view_button.cleanup()
