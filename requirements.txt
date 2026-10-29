@@ -2,3 +2,10 @@ pygame>=2.0
 neat-python
 numpy
 moderngl
+gymnasium
+stable-baselines3
+tensorboard
+tqdm
+rich
+# Do NOT list torch here — use the CUDA build you already have, e.g.:
+#   pip install torch==2.7.1+cu118 --index-url https://download.pytorch.org/whl/cu118
