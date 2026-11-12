@@ -1,7 +1,6 @@
 # Bare PPO train loop (Stable-Baselines3) on DrivingEnv.
 #
-#   python train_ppo.py
-#   python train_ppo.py --n-envs 8 --steps 1000000
+#   python train_ppo.py --random-tracks --hard-mix --steps 1500000
 
 # Import libraries.
 import argparse  # For reading command line flags.
@@ -29,27 +28,70 @@ def main():
     p.add_argument('--run-dir', default=os.path.join(ROOT, 'runs', 'ppo_v3'))
     p.add_argument('--resume', default=None, help='Path to .zip (same obs size only)')
     p.add_argument('--lr', type=float, default=None, help='Fixed LR override')
+    p.add_argument('--random-tracks', action='store_true')
+    p.add_argument('--map3-prob', type=float, default=0.15)
+    p.add_argument(
+        '--hard-mix',
+        action='store_true',
+        help='Bias procedural mix toward medium/hard (chicanes, variable width)',
+    )
     args = p.parse_args()
 
-    os.makedirs(args.run_dir, exist_ok=True)  # Make sure the run folder exists.
-    print('Headless train. Watch with watch_ppo.py')
-    print('Run dir: ' + str(args.run_dir) + '  steps=' + str(args.steps) + '  n_envs=' + str(args.n_envs))
+    # If user left the default run dir but turned random tracks on, point at a better folder name.
+    if args.random_tracks and args.run_dir.rstrip('\\/').endswith('ppo_v3'):
+        args.run_dir = os.path.join(
+            ROOT, 'runs', 'ppo_v5_hard' if args.hard_mix else 'ppo_v4_gen'
+        )
 
-    # Function to build one DrivingEnv on the hand-made map.
+    os.makedirs(args.run_dir, exist_ok=True)  # Make sure the run folder exists.
+    print('Headless train. Watch with watch_ppo.py / watch_gen.py')
+    print('Run dir: ' + str(args.run_dir) + '  steps=' + str(args.steps) + '  n_envs=' + str(args.n_envs))
+    if args.random_tracks:
+        print('Random tracks ON  map3_prob=' + str(args.map3_prob) + '  hard_mix=' + str(args.hard_mix))
+
+    diffs = ('easy', 'medium', 'hard')
+    # Prefer clean circuits; hard is narrower / smoother S-bends, not inkblots.
+    # hard_mix puts more weight on medium + hard.
+    weights = (0.35, 0.40, 0.25) if args.hard_mix else (0.60, 0.30, 0.10)
+
+    # Function to build one DrivingEnv with the flags we picked above.
     def make_env():
         from rl.env import DrivingEnv
-        return DrivingEnv()
+        return DrivingEnv(
+            random_tracks=args.random_tracks,
+            keep_map3_prob=args.map3_prob if args.random_tracks else 0.0,
+            track_difficulties=diffs,
+            track_difficulty_weights=weights,
+        )
 
-    # Subproc is faster for many envs on the fixed map.
-    vec_cls = SubprocVecEnv if args.n_envs > 1 else DummyVecEnv
+    # Subproc is faster for many envs on the fixed map; random tracks stay on DummyVecEnv
+    # because pygame surfaces / generation don't love being pickled across processes.
+    vec_cls = SubprocVecEnv if (args.n_envs > 1 and not args.random_tracks) else DummyVecEnv
+    if args.random_tracks and args.n_envs > 1:
+        print('Using DummyVecEnv x' + str(args.n_envs))
     env = make_vec_env(make_env, n_envs=args.n_envs, seed=args.seed, vec_env_cls=vec_cls)
 
-    lr = args.lr if args.lr is not None else 2e-4
+    # Learning rate: fixed override if --lr was passed, else a small schedule for gen / hard,
+    # or a flat 2e-4 for short fresh runs on map_3.
+    if args.lr is not None:
+        lr = args.lr
+        lr_schedule = lr
+    elif args.hard_mix or args.random_tracks:
+        # Function used by SB3: progress_remaining is 1 at start, 0 at end.
+        def lr_schedule(progress_remaining):
+            # Start at 1e-4, drop to 5e-5 once we're past about half of training.
+            return 1e-4 if progress_remaining > 0.45 else 5e-5
+
+        lr = lr_schedule
+    else:
+        lr = 2e-4
+        lr_schedule = lr
 
     if args.resume:
         print('Resuming from ' + str(args.resume), flush=True)
         model = PPO.load(args.resume, env=env, device=args.device)
-        model.lr_schedule = lambda _: float(lr)
+        # Make sure the loaded model keeps using the LR schedule we just built.
+        model.lr_schedule = lr_schedule if callable(lr_schedule) else (lambda _: float(lr))
         model.tensorboard_log = os.path.join(args.run_dir, 'tb')
     else:
         print('Fresh PPO  obs=19  net=[256,256,128]')
@@ -58,30 +100,39 @@ def main():
             env,
             learning_rate=lr,
             n_steps=2048,
-            batch_size=256,
-            n_epochs=10,
-            gamma=0.99,
+            batch_size=512,
+            n_epochs=3,
+            gamma=0.995,
             gae_lambda=0.95,
             clip_range=0.2,
             ent_coef=0.01,
             vf_coef=0.5,
             max_grad_norm=0.5,
             policy_kwargs=dict(net_arch=[256, 256, 128]),
-            tensorboard_log=os.path.join(args.run_dir, 'tb'),
-            device=args.device,
-            seed=args.seed,
             verbose=1,
+            seed=args.seed,
+            device=args.device,
+            tensorboard_log=os.path.join(args.run_dir, 'tb'),
         )
 
+    # Save a checkpoint every ~50k timesteps (divided by n_envs because SB3 counts per-env).
     ckpt = CheckpointCallback(
-        save_freq=max(50_000 // max(args.n_envs, 1), 1),
-        save_path=os.path.join(args.run_dir, 'checkpoints'),
+        save_freq=max(50000 // args.n_envs, 1),
+        save_path=os.path.join(args.run_dir, 'ckpt'),
         name_prefix='ppo',
     )
-    model.learn(total_timesteps=args.steps, callback=ckpt, progress_bar=True)
+
+    model.learn(
+        total_timesteps=args.steps,
+        callback=ckpt,
+        progress_bar=True,
+        reset_num_timesteps=not bool(args.resume),  # Keep timestep count if we're resuming.
+        tb_log_name='PPO_resume' if args.resume else 'PPO',
+    )
     out = os.path.join(args.run_dir, 'ppo_final.zip')
-    model.save(out)
-    print('Saved ' + out)
+    model.save(out)  # Write the finished model.
+    print('saved ' + str(out))
+    env.close()  # Shut the envs down cleanly.
 
 
 if __name__ == '__main__':
