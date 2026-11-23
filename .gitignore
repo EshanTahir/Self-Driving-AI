@@ -1,3 +1,20 @@
 .idea/
+.venv/
+venv/
 __pycache__/
+*.pyc
+*.pyo
+*.spec
 Irend.txt
+nets/
+runs/
+1
+backup/
+*.tiled-session
+.DS_Store
+single.py
+
+# Local-only (not for GitHub)
+/misc/
+/Images/
+/Miscellaneous/
