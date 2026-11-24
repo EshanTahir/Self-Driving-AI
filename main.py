@@ -1,6 +1,5 @@
 # ToDo: Features to add:
 # ToDo: Implement in-house genetic algorithm
-# ToDo: Remake physics system.
 # ToDo: Add weather changes, obstacles, and environment changes to simulation.
 
 # ToDo: Create program to make checkpoints
